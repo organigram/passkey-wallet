@@ -41,8 +41,6 @@
     "viem": "2.55.2"
   },
   "devDependencies": {
-    "@microsoft/api-documenter": "^7.25.9",
-    "@microsoft/api-extractor": "^7.47.4",
     "@rainbow-me/rainbowkit": "^2.2.8",
     "@tsconfig/recommended": "^1.0.7",
     "@types/jest": "^29.5.12",
@@ -53,7 +51,7 @@
     "wagmi": "^2.16.3"
   },
   "scripts": {
-    "docs:generate": "node --import tsx ../docs/scripts/prepareTypeScriptReference.ts . passkey-wallet && env-cmd --silent pnpm api-extractor run --config .organigram-docs-cache/passkey-wallet/api-extractor.json --local && pnpm api-documenter yaml --input-folder .organigram-docs-cache/passkey-wallet/api-model --output-folder .organigram-docs-cache/passkey-wallet/yaml && TMPDIR=.organigram-docs-cache/passkey-wallet/tmp node --import tsx ../docs/scripts/generateTypeScriptReference.ts . passkey-wallet .organigram-docs-cache/passkey-wallet/yaml",
+    "docs:generate": "env-cmd --silent tsx ../docs/scripts/generatePackageTypeScriptReference.ts . passkey-wallet",
     "build": "tsc -p tsconfig.build.json --pretty",
     "test": "jest",
     "typecheck": "tsc --noEmit --incremental false",
