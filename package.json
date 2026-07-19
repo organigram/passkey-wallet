@@ -1,0 +1,62 @@
+{
+  "name": "@organigram/passkey-wallet",
+  "version": "0.1.5",
+  "description": "Organigram Passkey Wallet.",
+  "author": "Organigram (https://organigram.ai)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "ssh://git@github.com:organigram/organigram.git",
+    "directory": "packages/passkey-wallet"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./crypto": "./dist/crypto.js",
+    "./vault": "./dist/vault.js",
+    "./webauthn-client": "./dist/webauthn-client.js",
+    "./webauthn-server": "./dist/webauthn-server.js",
+    "./wallet": "./dist/wallet.js",
+    "./eip1193": "./dist/eip1193.js",
+    "./rainbowkit": "./dist/rainbowkit.js",
+    "./errors": "./dist/errors.js"
+  },
+  "type": "module",
+  "peerDependencies": {
+    "@organigram/js": "workspace:^",
+    "@rainbow-me/rainbowkit": "^2.2.8",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "viem": "^2.18.2",
+    "wagmi": "^2.16.3 || ^3.0.0"
+  },
+  "dependencies": {
+    "@organigram/js": "workspace:^",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "viem": "2.55.2"
+  },
+  "devDependencies": {
+    "@microsoft/api-documenter": "^7.25.9",
+    "@microsoft/api-extractor": "^7.47.4",
+    "@rainbow-me/rainbowkit": "^2.2.8",
+    "@tsconfig/recommended": "^1.0.7",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.19.37",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.3",
+    "typescript": "^5.5.4",
+    "wagmi": "^2.16.3"
+  },
+  "scripts": {
+    "docs:generate": "node --import tsx ../docs/scripts/prepareTypeScriptReference.ts . passkey-wallet && env-cmd --silent pnpm api-extractor run --config .organigram-docs-cache/passkey-wallet/api-extractor.json --local && pnpm api-documenter yaml --input-folder .organigram-docs-cache/passkey-wallet/api-model --output-folder .organigram-docs-cache/passkey-wallet/yaml && TMPDIR=.organigram-docs-cache/passkey-wallet/tmp node --import tsx ../docs/scripts/generateTypeScriptReference.ts . passkey-wallet .organigram-docs-cache/passkey-wallet/yaml",
+    "build": "tsc -p tsconfig.build.json --pretty",
+    "test": "jest",
+    "typecheck": "tsc --noEmit --incremental false",
+    "lint": "eslint ."
+  }
+}

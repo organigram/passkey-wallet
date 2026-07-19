@@ -1,0 +1,27 @@
+{
+  "extends": "@tsconfig/recommended/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "strict": true,
+    "removeComments": false,
+    "resolveJsonModule": true,
+    "preserveConstEnums": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "rootDir": ".",
+    "sourceMap": false,
+    "declaration": true,
+    "noEmit": true,
+    "types": ["node", "jest"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "__mocks__/**/*.ts",
+    "jest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
