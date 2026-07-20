@@ -135,46 +135,6 @@ The passkey unlocks the local vault. The EOA signs Ethereum messages and
 transactions. Those are separate responsibilities, which keeps the integration
 simple and compatible with existing web3 infrastructure.
 
-## Package Exports
-
-```ts
-import {
-  buildPasskeyWalletCapabilities,
-  buildEmailPasskeyCapabilities
-} from '@organigram/passkey-wallet'
-
-import {
-  createFetchPasskeyWalletApiClient,
-  unlockOrCreatePasskeyWallet,
-  registerAdditionalPasskeyCredential,
-  exportPasskeyWalletRecoveryPhrase
-} from '@organigram/passkey-wallet/webauthn-client'
-
-import {
-  createPasskeyRegistrationOptions,
-  createPasskeyAuthenticationOptions,
-  verifyPasskeyRegistration,
-  verifyPasskeyAuthentication
-} from '@organigram/passkey-wallet/webauthn-server'
-
-import {
-  createOrganigramPasskeyWallet,
-  isOrganigramPasskeyConnector
-} from '@organigram/passkey-wallet/rainbowkit'
-```
-
-The package is split by runtime boundary:
-
-- `@organigram/passkey-wallet` exposes shared wallet, vault, and capability
-  types.
-- `@organigram/passkey-wallet/webauthn-client` runs in the browser and performs
-  WebAuthn ceremonies, PRF extraction, vault encryption, vault decryption, and
-  wallet unlock.
-- `@organigram/passkey-wallet/webauthn-server` runs on the server and verifies
-  WebAuthn registration/authentication responses.
-- `@organigram/passkey-wallet/eip1193` exposes the provider implementation.
-- `@organigram/passkey-wallet/rainbowkit` exposes a RainbowKit wallet adapter.
-
 ## Quick Start
 
 Create a browser API client:
@@ -405,22 +365,6 @@ host app owns persistence, authentication policy, UI, and deployment.
 It is not a replacement for hardware wallets in high-assurance custody flows. It
 is designed for the safest mainstream web UX possible while staying portable and
 EVM-compatible.
-
-## Philosophy
-
-The safest web3 UX is the one users can actually complete.
-
-Organigram Passkey Wallet keeps the cryptographic model understandable:
-
-- the wallet is an EOA;
-- the unlock method is a passkey;
-- the backup is another passkey;
-- the disaster recovery path is a seed phrase;
-- the dapp interface is EIP-1193;
-- the server stores encrypted envelopes, not keys.
-
-That is the whole point: the most frictionless, simplest, and safest UX possible
-for web3, without strings attached.
 
 ## License
 
