@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { hydratePasskeyPrfOptions } from './webauthn-client'
+import {
+  hydratePasskeyPrfOptions,
+  isPasskeyCredentialUnavailableError
+} from './webauthn-client'
 
 const webauthnClientPath = resolve('src/webauthn-client.ts')
 const walletPath = resolve('src/wallet.ts')
@@ -78,5 +81,23 @@ describe('passkey WebAuthn client helpers', () => {
     expect(source).not.toMatch(/Ce gestionnaire/)
     expect(errorsSource).not.toMatch(/Ce gestionnaire/)
     expect(source).not.toMatch(/WebAuthn PRF is not supported/)
+  })
+
+  it('recognizes browser errors for missing passkey credentials', () => {
+    expect(
+      isPasskeyCredentialUnavailableError(
+        new DOMException('The operation was not allowed.', 'NotAllowedError')
+      )
+    ).toBe(true)
+    expect(
+      isPasskeyCredentialUnavailableError(
+        new Error('No credentials are available for this authenticator.')
+      )
+    ).toBe(true)
+    expect(
+      isPasskeyCredentialUnavailableError(
+        new Error('Passkey wallet envelope does not match its address.')
+      )
+    ).toBe(false)
   })
 })

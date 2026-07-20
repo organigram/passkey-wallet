@@ -380,6 +380,23 @@ export const registerAdditionalPasskeyCredential = async ({
     name: name ?? 'Backup passkey'
   })
 
+export const isPasskeyCredentialUnavailableError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error == null) return false
+
+  const { name, message } = error as { name?: unknown; message?: unknown }
+  const normalizedName = typeof name === 'string' ? name.toLowerCase() : ''
+  const normalizedMessage =
+    typeof message === 'string' ? message.toLowerCase() : ''
+
+  return (
+    normalizedName === 'notallowederror' ||
+    normalizedName === 'invalidstateerror' ||
+    normalizedMessage.includes('no credentials') ||
+    normalizedMessage.includes('not allowed') ||
+    normalizedMessage.includes('could not be completed')
+  )
+}
+
 export const unlockOrCreatePasskeyWallet = async ({
   api,
   capabilities
@@ -393,8 +410,14 @@ export const unlockOrCreatePasskeyWallet = async ({
   }
 
   if (capabilities.method !== 'register') {
-    const wallet = await unlockPasskeyWallet({ api })
-    if (wallet != null) return wallet
+    try {
+      const wallet = await unlockPasskeyWallet({ api })
+      if (wallet != null) return wallet
+    } catch (error) {
+      if (!isPasskeyCredentialUnavailableError(error)) {
+        throw error
+      }
+    }
   }
 
   return await registerPasskeyWallet({
