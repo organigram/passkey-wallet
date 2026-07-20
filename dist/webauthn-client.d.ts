@@ -65,6 +65,7 @@ export declare const registerAdditionalPasskeyCredential: ({ api, wallet, name }
     wallet: UnlockedPasskeyWallet;
     name?: string;
 }) => Promise<PasskeyRegistrationResult>;
+export declare const isPasskeyCredentialUnavailableError: (error: unknown) => boolean;
 export declare const unlockOrCreatePasskeyWallet: ({ api, capabilities }: {
     api: PasskeyWalletApiClient;
     capabilities: OrganigramPasskeyCapabilities;

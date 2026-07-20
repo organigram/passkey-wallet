@@ -196,14 +196,33 @@ export const registerAdditionalPasskeyCredential = async ({ api, wallet, name })
     },
     name: name ?? 'Backup passkey'
 });
+export const isPasskeyCredentialUnavailableError = (error) => {
+    if (typeof error !== 'object' || error == null)
+        return false;
+    const { name, message } = error;
+    const normalizedName = typeof name === 'string' ? name.toLowerCase() : '';
+    const normalizedMessage = typeof message === 'string' ? message.toLowerCase() : '';
+    return (normalizedName === 'notallowederror' ||
+        normalizedName === 'invalidstateerror' ||
+        normalizedMessage.includes('no credentials') ||
+        normalizedMessage.includes('not allowed') ||
+        normalizedMessage.includes('could not be completed'));
+};
 export const unlockOrCreatePasskeyWallet = async ({ api, capabilities }) => {
     if (typeof window === 'undefined' || window.PublicKeyCredential == null) {
         throw new Error('Passkeys are not available in this browser.');
     }
     if (capabilities.method !== 'register') {
-        const wallet = await unlockPasskeyWallet({ api });
-        if (wallet != null)
-            return wallet;
+        try {
+            const wallet = await unlockPasskeyWallet({ api });
+            if (wallet != null)
+                return wallet;
+        }
+        catch (error) {
+            if (!isPasskeyCredentialUnavailableError(error)) {
+                throw error;
+            }
+        }
     }
     return await registerPasskeyWallet({
         api,
