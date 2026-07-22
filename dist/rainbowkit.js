@@ -6,7 +6,7 @@ export { organigramPasskeyWalletIcon, organigramPasskeyWalletId } from './types'
 const walletName = 'Passkey Wallet';
 const passkeyConnectorIds = new Set([organigramPasskeyWalletId]);
 export const isOrganigramPasskeyConnector = ({ id }) => passkeyConnectorIds.has(id);
-export const createOrganigramPasskeyWallet = ({ unlockOrCreatePasskeyWallet, registerAdditionalPasskeyCredential, exportPasskeyWalletRecoveryPhrase }) => ({
+export const createOrganigramPasskeyWallet = ({ unlockOrCreatePasskeyWallet, registerAdditionalPasskeyCredential, exportPasskeyWalletSeedPhrase, exportPasskeyWalletRecoveryPhrase }) => ({
     id: organigramPasskeyWalletId,
     name: walletName,
     shortName: 'Passkey',
@@ -58,7 +58,14 @@ export const createOrganigramPasskeyWallet = ({ unlockOrCreatePasskeyWallet, reg
                     },
                     actions: {
                         registerAdditionalPasskeyCredential,
-                        exportPasskeyWalletRecoveryPhrase
+                        ...(exportPasskeyWalletSeedPhrase == null
+                            ? {
+                                exportPasskeyWalletRecoveryPhrase: exportPasskeyWalletRecoveryPhrase
+                            }
+                            : {
+                                exportPasskeyWalletSeedPhrase,
+                                exportPasskeyWalletRecoveryPhrase
+                            })
                     }
                 });
                 config.emitter.emit('connect', {

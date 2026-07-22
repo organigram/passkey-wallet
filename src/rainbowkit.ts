@@ -35,6 +35,7 @@ export type CreateOrganigramPasskeyWalletInput =
 export const createOrganigramPasskeyWallet = ({
   unlockOrCreatePasskeyWallet,
   registerAdditionalPasskeyCredential,
+  exportPasskeyWalletSeedPhrase,
   exportPasskeyWalletRecoveryPhrase
 }: CreateOrganigramPasskeyWalletInput): Wallet => ({
   id: organigramPasskeyWalletId,
@@ -96,7 +97,15 @@ export const createOrganigramPasskeyWallet = ({
             },
             actions: {
               registerAdditionalPasskeyCredential,
-              exportPasskeyWalletRecoveryPhrase
+              ...(exportPasskeyWalletSeedPhrase == null
+                ? {
+                    exportPasskeyWalletRecoveryPhrase:
+                      exportPasskeyWalletRecoveryPhrase!
+                  }
+                : {
+                    exportPasskeyWalletSeedPhrase,
+                    exportPasskeyWalletRecoveryPhrase
+                  })
             }
           })
           config.emitter.emit('connect', {

@@ -17,7 +17,7 @@ export const passkeyChallengeTtlMs = 5 * 60 * 1000
 
 export type PasskeyVaultEnvelopeInput = {
   address: string
-  encryptedMnemonic: string
+  encryptedVault: string
   salt: string
   nonce: string
   algorithm: string
@@ -26,19 +26,25 @@ export type PasskeyVaultEnvelopeInput = {
 
 export const validatePasskeyVaultEnvelopeInput = (
   input: PasskeyVaultEnvelopeInput
-): PasskeyVaultEnvelopeInput & { address: `0x${string}` } => {
+): PasskeyVaultEnvelopeInput & {
+  address: `0x${string}`
+} => {
+  if (typeof input !== 'object' || input == null) {
+    throw new Error('Passkey vault envelope is required.')
+  }
   if (!isAddress(input.address)) {
     throw new Error('Passkey vault envelope requires a valid wallet address.')
   }
-  if (input.encryptedMnemonic.trim() === '') {
-    throw new Error(
-      'Passkey vault envelope requires encrypted recovery phrase data.'
-    )
+  if (
+    typeof input.encryptedVault !== 'string' ||
+    input.encryptedVault.trim() === ''
+  ) {
+    throw new Error('Passkey vault envelope requires encrypted vault data.')
   }
-  if (input.salt.trim() === '') {
+  if (typeof input.salt !== 'string' || input.salt.trim() === '') {
     throw new Error('Passkey vault envelope requires a salt.')
   }
-  if (input.nonce.trim() === '') {
+  if (typeof input.nonce !== 'string' || input.nonce.trim() === '') {
     throw new Error('Passkey vault envelope requires a nonce.')
   }
   if (input.algorithm !== passkeyVaultAlgorithm) {
@@ -50,9 +56,13 @@ export const validatePasskeyVaultEnvelopeInput = (
 
   return {
     ...input,
-    address: getAddress(input.address as `0x${string}`)
+    address: getAddress(input.address as `0x${string}`),
   }
 }
+
+export type ValidatedPasskeyVaultEnvelope = ReturnType<
+  typeof validatePasskeyVaultEnvelopeInput
+>
 
 export const createPasskeyChallengeExpiry = (): Date =>
   new Date(Date.now() + passkeyChallengeTtlMs)
@@ -81,18 +91,20 @@ export const getWebAuthnClientDataChallenge = (response: unknown): string => {
 
 export const createPasskeyRegistrationOptions = async ({
   rpId,
+  rpName = 'Passkey Wallet',
   userAddress,
   email
 }: {
   rpId: string
+  rpName?: string
   userAddress?: string | null
   email?: string | null
 }) =>
   await generateRegistrationOptions({
-    rpName: 'Organigram',
+    rpName,
     rpID: rpId,
-    userName: email ?? userAddress ?? 'Organigram passkey wallet',
-    userDisplayName: email ?? userAddress ?? 'Organigram passkey wallet',
+    userName: email ?? userAddress ?? `${rpName} passkey wallet`,
+    userDisplayName: email ?? userAddress ?? `${rpName} passkey wallet`,
     attestationType: 'none',
     authenticatorSelection: {
       residentKey: 'required',
@@ -129,7 +141,7 @@ export const verifyPasskeyRegistration = async ({
   envelope: PasskeyVaultEnvelopeInput
 }): Promise<{
   verification: VerifiedPasskeyRegistrationResponse
-  vaultEnvelope: PasskeyVaultEnvelopeInput & { address: `0x${string}` }
+  vaultEnvelope: ValidatedPasskeyVaultEnvelope
 }> => {
   const vaultEnvelope = validatePasskeyVaultEnvelopeInput(envelope)
   const verification = await verifyRegistrationResponse({
@@ -229,18 +241,27 @@ export const verifyPasskeyAuthentication = async ({
   })
 
 export const toPasskeyVaultEnvelopeData = ({
-  encryptedMnemonic,
+  encryptedVault,
   salt,
   nonce,
   algorithm,
   keyVersion
 }: {
-  encryptedMnemonic: string
+  encryptedVault: string
   salt: string
   nonce: string
   algorithm: string
   keyVersion: number
 }): PasskeyVaultEnvelopeData => {
+  if (typeof encryptedVault !== 'string' || encryptedVault.trim() === '') {
+    throw new Error('Passkey vault envelope requires encrypted vault data.')
+  }
+  if (typeof salt !== 'string' || salt.trim() === '') {
+    throw new Error('Passkey vault envelope requires a salt.')
+  }
+  if (typeof nonce !== 'string' || nonce.trim() === '') {
+    throw new Error('Passkey vault envelope requires a nonce.')
+  }
   if (algorithm !== passkeyVaultAlgorithm) {
     throw new Error('Passkey vault envelope algorithm is not supported.')
   }
@@ -251,7 +272,7 @@ export const toPasskeyVaultEnvelopeData = ({
   return {
     algorithm,
     keyVersion,
-    ciphertext: encryptedMnemonic,
+    ciphertext: encryptedVault,
     salt,
     nonce
   }

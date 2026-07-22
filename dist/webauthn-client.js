@@ -95,7 +95,7 @@ const getPasskeyPrfOutput = (response) => {
         ? base64UrlToBytes(first)
         : new Uint8Array(first);
 };
-export async function registerPasskeyCredentialEnvelope({ api, address, vaultPayload, email, name }) {
+export async function preparePasskeyCredentialEnvelope({ api, address, vaultPayload, email, name }) {
     const { options } = await api.registerOptions({
         address,
         email,
@@ -115,16 +115,38 @@ export async function registerPasskeyCredentialEnvelope({ api, address, vaultPay
         key,
         salt
     });
-    return await api.registerVerify({
+    return {
+        address,
+        credentialId: typeof registrationResponse.id === 'string'
+            ? (registrationResponse.id)
+            : null,
         response: registrationResponse,
         envelope: {
             address,
-            encryptedMnemonic: envelope.ciphertext,
+            encryptedVault: envelope.ciphertext,
             salt: envelope.salt,
             nonce: envelope.nonce,
             algorithm: envelope.algorithm,
             keyVersion: envelope.keyVersion
         }
+    };
+}
+export async function submitPasskeyCredentialEnvelope({ api, registration }) {
+    return await api.registerVerify({
+        response: registration.response,
+        envelope: registration.envelope
+    });
+}
+export async function registerPasskeyCredentialEnvelope({ api, address, vaultPayload, email, name }) {
+    return await submitPasskeyCredentialEnvelope({
+        api,
+        registration: await preparePasskeyCredentialEnvelope({
+            api,
+            address,
+            vaultPayload,
+            email,
+            name
+        })
     });
 }
 export const registerPasskeyWallet = async ({ api, capabilities }) => {
@@ -184,6 +206,7 @@ export const exportPasskeyWalletRecoveryPhrase = async ({ api, expectedAddress }
     }
     return wallet.recoveryPhrase;
 };
+export const exportPasskeyWalletSeedPhrase = exportPasskeyWalletRecoveryPhrase;
 export const registerAdditionalPasskeyCredential = async ({ api, wallet, name }) => await registerPasskeyCredentialEnvelope({
     api,
     address: wallet.address,

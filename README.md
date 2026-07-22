@@ -270,7 +270,7 @@ type PasskeyCredential = {
 type PasskeyVaultEnvelope = {
   credentialId: string
   userAddress: `0x${string}`
-  encryptedMnemonic: string
+  encryptedVault: string
   salt: string
   nonce: string
   algorithm: string
@@ -288,6 +288,20 @@ type PasskeyChallenge = {
 
 Use short challenge TTLs, consume challenges exactly once, and enforce uniqueness
 for credential IDs.
+
+`createPasskeyRegistrationOptions` accepts a configurable `rpName`:
+
+```ts
+const options = await createPasskeyRegistrationOptions({
+  rpId: 'example.com',
+  rpName: 'Example Wallet',
+  userAddress
+})
+```
+
+The registration envelope uses `encryptedVault` for the encrypted vault
+ciphertext. API contracts should store and document the value as an encrypted
+vault because the plaintext can contain more than a recovery phrase.
 
 ## Backup Keys And Rotation
 

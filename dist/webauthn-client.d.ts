@@ -16,6 +16,20 @@ type PasskeyUnlockVerifyResponse = {
     credentialId: string;
     envelope: PasskeyVaultEnvelopeData;
 };
+type PasskeyRegistrationEnvelope = {
+    address: `0x${string}`;
+    encryptedVault: string;
+    salt: string;
+    nonce: string;
+    algorithm: string;
+    keyVersion: number;
+};
+export type PreparedPasskeyCredentialEnvelope = {
+    address: `0x${string}`;
+    credentialId: string | null;
+    response: unknown;
+    envelope: PasskeyRegistrationEnvelope;
+};
 export type PasskeyWalletApiClient = {
     registerOptions: (input: {
         address: `0x${string}`;
@@ -24,14 +38,7 @@ export type PasskeyWalletApiClient = {
     }) => Promise<PasskeyRegisterOptionsResponse>;
     registerVerify: (input: {
         response: unknown;
-        envelope: {
-            address: `0x${string}`;
-            encryptedMnemonic: string;
-            salt: string;
-            nonce: string;
-            algorithm: string;
-            keyVersion: number;
-        };
+        envelope: PasskeyRegistrationEnvelope;
     }) => Promise<PasskeyRegistrationResult>;
     unlockOptions: () => Promise<PasskeyUnlockOptionsResponse>;
     unlockVerify: (input: {
@@ -42,6 +49,17 @@ export declare const createFetchPasskeyWalletApiClient: (basePath?: string) => P
 export declare const hydratePasskeyPrfOptions: <T extends {
     extensions?: unknown;
 }>(options: T) => T;
+export declare function preparePasskeyCredentialEnvelope({ api, address, vaultPayload, email, name }: {
+    api: PasskeyWalletApiClient;
+    address: `0x${string}`;
+    vaultPayload: PasskeyWalletVaultPayload;
+    email?: string | null;
+    name?: string | null;
+}): Promise<PreparedPasskeyCredentialEnvelope>;
+export declare function submitPasskeyCredentialEnvelope({ api, registration }: {
+    api: PasskeyWalletApiClient;
+    registration: PreparedPasskeyCredentialEnvelope;
+}): Promise<PasskeyRegistrationResult>;
 export declare function registerPasskeyCredentialEnvelope({ api, address, vaultPayload, email, name }: {
     api: PasskeyWalletApiClient;
     address: `0x${string}`;
@@ -57,6 +75,10 @@ export declare const unlockPasskeyWallet: ({ api }: {
     api: PasskeyWalletApiClient;
 }) => Promise<UnlockedPasskeyWallet | null>;
 export declare const exportPasskeyWalletRecoveryPhrase: ({ api, expectedAddress }: {
+    api: PasskeyWalletApiClient;
+    expectedAddress: `0x${string}`;
+}) => Promise<string>;
+export declare const exportPasskeyWalletSeedPhrase: ({ api, expectedAddress }: {
     api: PasskeyWalletApiClient;
     expectedAddress: `0x${string}`;
 }) => Promise<string>;

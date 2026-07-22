@@ -26,7 +26,7 @@ describe('passkey WebAuthn server helpers', () => {
     expect(
       validatePasskeyVaultEnvelopeInput({
         address: '0x0000000000000000000000000000000000000001',
-        encryptedMnemonic: 'ciphertext',
+        encryptedVault: 'ciphertext',
         salt: 'salt',
         nonce: 'nonce',
         algorithm: 'AES-GCM-HKDF-SHA-256',

@@ -11,4 +11,4 @@ export type CreateOrganigramPasskeyWalletInput = OrganigramPasskeyProviderAction
         targetChainId: number;
     }) => Promise<UnlockedPasskeyWallet>;
 };
-export declare const createOrganigramPasskeyWallet: ({ unlockOrCreatePasskeyWallet, registerAdditionalPasskeyCredential, exportPasskeyWalletRecoveryPhrase }: CreateOrganigramPasskeyWalletInput) => Wallet;
+export declare const createOrganigramPasskeyWallet: ({ unlockOrCreatePasskeyWallet, registerAdditionalPasskeyCredential, exportPasskeyWalletSeedPhrase, exportPasskeyWalletRecoveryPhrase }: CreateOrganigramPasskeyWalletInput) => Wallet;

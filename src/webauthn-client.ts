@@ -41,6 +41,22 @@ type PasskeyUnlockVerifyResponse = {
   envelope: PasskeyVaultEnvelopeData
 }
 
+type PasskeyRegistrationEnvelope = {
+  address: `0x${string}`
+  encryptedVault: string
+  salt: string
+  nonce: string
+  algorithm: string
+  keyVersion: number
+}
+
+export type PreparedPasskeyCredentialEnvelope = {
+  address: `0x${string}`
+  credentialId: string | null
+  response: unknown
+  envelope: PasskeyRegistrationEnvelope
+}
+
 type PasskeyExtensionResults = {
   prf?: {
     results?: {
@@ -64,14 +80,7 @@ export type PasskeyWalletApiClient = {
   }) => Promise<PasskeyRegisterOptionsResponse>
   registerVerify: (input: {
     response: unknown
-    envelope: {
-      address: `0x${string}`
-      encryptedMnemonic: string
-      salt: string
-      nonce: string
-      algorithm: string
-      keyVersion: number
-    }
+    envelope: PasskeyRegistrationEnvelope
   }) => Promise<PasskeyRegistrationResult>
   unlockOptions: () => Promise<PasskeyUnlockOptionsResponse>
   unlockVerify: (input: {
@@ -232,7 +241,7 @@ const getPasskeyPrfOutput = (response: unknown): Uint8Array => {
     : new Uint8Array(first)
 }
 
-export async function registerPasskeyCredentialEnvelope({
+export async function preparePasskeyCredentialEnvelope({
   api,
   address,
   vaultPayload,
@@ -244,7 +253,7 @@ export async function registerPasskeyCredentialEnvelope({
   vaultPayload: PasskeyWalletVaultPayload
   email?: string | null
   name?: string | null
-}): Promise<PasskeyRegistrationResult> {
+}): Promise<PreparedPasskeyCredentialEnvelope> {
   const { options } = await api.registerOptions({
     address,
     email,
@@ -265,16 +274,59 @@ export async function registerPasskeyCredentialEnvelope({
     salt
   })
 
-  return await api.registerVerify({
+  return {
+    address,
+    credentialId:
+      typeof (registrationResponse as { id?: unknown }).id === 'string'
+        ? ((registrationResponse as { id: string }).id)
+        : null,
     response: registrationResponse,
     envelope: {
       address,
-      encryptedMnemonic: envelope.ciphertext,
+      encryptedVault: envelope.ciphertext,
       salt: envelope.salt,
       nonce: envelope.nonce,
       algorithm: envelope.algorithm,
       keyVersion: envelope.keyVersion
     }
+  }
+}
+
+export async function submitPasskeyCredentialEnvelope({
+  api,
+  registration
+}: {
+  api: PasskeyWalletApiClient
+  registration: PreparedPasskeyCredentialEnvelope
+}): Promise<PasskeyRegistrationResult> {
+  return await api.registerVerify({
+    response: registration.response,
+    envelope: registration.envelope
+  })
+}
+
+export async function registerPasskeyCredentialEnvelope({
+  api,
+  address,
+  vaultPayload,
+  email,
+  name
+}: {
+  api: PasskeyWalletApiClient
+  address: `0x${string}`
+  vaultPayload: PasskeyWalletVaultPayload
+  email?: string | null
+  name?: string | null
+}): Promise<PasskeyRegistrationResult> {
+  return await submitPasskeyCredentialEnvelope({
+    api,
+    registration: await preparePasskeyCredentialEnvelope({
+      api,
+      address,
+      vaultPayload,
+      email,
+      name
+    })
   })
 }
 
@@ -357,6 +409,9 @@ export const exportPasskeyWalletRecoveryPhrase = async ({
 
   return wallet.recoveryPhrase
 }
+
+export const exportPasskeyWalletSeedPhrase =
+  exportPasskeyWalletRecoveryPhrase
 
 export const registerAdditionalPasskeyCredential = async ({
   api,

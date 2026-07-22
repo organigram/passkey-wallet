@@ -23,15 +23,27 @@ export type OrganigramPasskeyProvider = {
   ) => void
 }
 
-export type OrganigramPasskeyProviderActions = {
-  registerAdditionalPasskeyCredential: (input: {
-    wallet: UnlockedPasskeyWallet
-    name?: string
-  }) => Promise<PasskeyRegistrationResult>
-  exportPasskeyWalletRecoveryPhrase: (input: {
-    expectedAddress: `0x${string}`
-  }) => Promise<string>
-}
+type ExportPasskeyWalletSeedPhrase = (input: {
+  expectedAddress: `0x${string}`
+}) => Promise<string>
+
+type OrganigramPasskeyProviderSeedPhraseAction =
+  | {
+      exportPasskeyWalletSeedPhrase: ExportPasskeyWalletSeedPhrase
+      exportPasskeyWalletRecoveryPhrase?: ExportPasskeyWalletSeedPhrase
+    }
+  | {
+      exportPasskeyWalletSeedPhrase?: ExportPasskeyWalletSeedPhrase
+      exportPasskeyWalletRecoveryPhrase: ExportPasskeyWalletSeedPhrase
+    }
+
+export type OrganigramPasskeyProviderActions =
+  OrganigramPasskeyProviderSeedPhraseAction & {
+    registerAdditionalPasskeyCredential: (input: {
+      wallet: UnlockedPasskeyWallet
+      name?: string
+    }) => Promise<PasskeyRegistrationResult>
+  }
 
 const normalizePersonalSignMessage = (message: unknown): string => {
   if (typeof message !== 'string') {
@@ -75,6 +87,9 @@ export const createPasskeyWalletProvider = ({
 
   const request = (async ({ method, params }) => {
     const requestParams = Array.isArray(params) ? params : []
+    const exportSeedPhrase =
+      actions.exportPasskeyWalletSeedPhrase ??
+      actions.exportPasskeyWalletRecoveryPhrase
 
     switch (method) {
       case 'eth_requestAccounts':
@@ -121,8 +136,13 @@ export const createPasskeyWalletProvider = ({
               : undefined
         })
       }
+      case 'organigram_exportSeedPhrase':
       case 'organigram_exportRecoveryPhrase':
-        return await actions.exportPasskeyWalletRecoveryPhrase({
+        if (exportSeedPhrase == null) {
+          throw new Error('Seed phrase export is not available.')
+        }
+
+        return await exportSeedPhrase({
           expectedAddress: wallet.address
         })
       default: {

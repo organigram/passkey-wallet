@@ -5,14 +5,21 @@ export type OrganigramPasskeyProvider = {
     on: (event: PasskeyProviderEvent, listener: PasskeyProviderListener) => void;
     removeListener: (event: PasskeyProviderEvent, listener: PasskeyProviderListener) => void;
 };
-export type OrganigramPasskeyProviderActions = {
+type ExportPasskeyWalletSeedPhrase = (input: {
+    expectedAddress: `0x${string}`;
+}) => Promise<string>;
+type OrganigramPasskeyProviderSeedPhraseAction = {
+    exportPasskeyWalletSeedPhrase: ExportPasskeyWalletSeedPhrase;
+    exportPasskeyWalletRecoveryPhrase?: ExportPasskeyWalletSeedPhrase;
+} | {
+    exportPasskeyWalletSeedPhrase?: ExportPasskeyWalletSeedPhrase;
+    exportPasskeyWalletRecoveryPhrase: ExportPasskeyWalletSeedPhrase;
+};
+export type OrganigramPasskeyProviderActions = OrganigramPasskeyProviderSeedPhraseAction & {
     registerAdditionalPasskeyCredential: (input: {
         wallet: UnlockedPasskeyWallet;
         name?: string;
     }) => Promise<PasskeyRegistrationResult>;
-    exportPasskeyWalletRecoveryPhrase: (input: {
-        expectedAddress: `0x${string}`;
-    }) => Promise<string>;
 };
 export declare const createPasskeyWalletProvider: ({ wallet, chain, rpcUrl, switchChain, actions }: {
     wallet: UnlockedPasskeyWallet;
@@ -22,3 +29,4 @@ export declare const createPasskeyWalletProvider: ({ wallet, chain, rpcUrl, swit
     actions: OrganigramPasskeyProviderActions;
 }) => OrganigramPasskeyProvider;
 export declare const normalizePasskeyWalletAddress: (address: `0x${string}`) => `0x${string}`;
+export {};

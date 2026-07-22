@@ -1,0 +1,7 @@
+.next
+node_modules
+next-env.d.ts
+.passkey-wallet-store
+
+
+certificates

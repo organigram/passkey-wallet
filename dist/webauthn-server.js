@@ -3,16 +3,20 @@ import { getAddress, isAddress } from 'viem';
 import { base64UrlToBytes, passkeyVaultAlgorithm, passkeyVaultKeyVersion } from './crypto';
 export const passkeyChallengeTtlMs = 5 * 60 * 1000;
 export const validatePasskeyVaultEnvelopeInput = (input) => {
+    if (typeof input !== 'object' || input == null) {
+        throw new Error('Passkey vault envelope is required.');
+    }
     if (!isAddress(input.address)) {
         throw new Error('Passkey vault envelope requires a valid wallet address.');
     }
-    if (input.encryptedMnemonic.trim() === '') {
-        throw new Error('Passkey vault envelope requires encrypted recovery phrase data.');
+    if (typeof input.encryptedVault !== 'string' ||
+        input.encryptedVault.trim() === '') {
+        throw new Error('Passkey vault envelope requires encrypted vault data.');
     }
-    if (input.salt.trim() === '') {
+    if (typeof input.salt !== 'string' || input.salt.trim() === '') {
         throw new Error('Passkey vault envelope requires a salt.');
     }
-    if (input.nonce.trim() === '') {
+    if (typeof input.nonce !== 'string' || input.nonce.trim() === '') {
         throw new Error('Passkey vault envelope requires a nonce.');
     }
     if (input.algorithm !== passkeyVaultAlgorithm) {
@@ -23,7 +27,7 @@ export const validatePasskeyVaultEnvelopeInput = (input) => {
     }
     return {
         ...input,
-        address: getAddress(input.address)
+        address: getAddress(input.address),
     };
 };
 export const createPasskeyChallengeExpiry = () => new Date(Date.now() + passkeyChallengeTtlMs);
@@ -38,11 +42,11 @@ export const getWebAuthnClientDataChallenge = (response) => {
     }
     return clientData.challenge;
 };
-export const createPasskeyRegistrationOptions = async ({ rpId, userAddress, email }) => await generateRegistrationOptions({
-    rpName: 'Organigram',
+export const createPasskeyRegistrationOptions = async ({ rpId, rpName = 'Passkey Wallet', userAddress, email }) => await generateRegistrationOptions({
+    rpName,
     rpID: rpId,
-    userName: email ?? userAddress ?? 'Organigram passkey wallet',
-    userDisplayName: email ?? userAddress ?? 'Organigram passkey wallet',
+    userName: email ?? userAddress ?? `${rpName} passkey wallet`,
+    userDisplayName: email ?? userAddress ?? `${rpName} passkey wallet`,
     attestationType: 'none',
     authenticatorSelection: {
         residentKey: 'required',
@@ -116,7 +120,16 @@ export const verifyPasskeyAuthentication = async ({ response, expectedChallenge,
     },
     requireUserVerification: true
 });
-export const toPasskeyVaultEnvelopeData = ({ encryptedMnemonic, salt, nonce, algorithm, keyVersion }) => {
+export const toPasskeyVaultEnvelopeData = ({ encryptedVault, salt, nonce, algorithm, keyVersion }) => {
+    if (typeof encryptedVault !== 'string' || encryptedVault.trim() === '') {
+        throw new Error('Passkey vault envelope requires encrypted vault data.');
+    }
+    if (typeof salt !== 'string' || salt.trim() === '') {
+        throw new Error('Passkey vault envelope requires a salt.');
+    }
+    if (typeof nonce !== 'string' || nonce.trim() === '') {
+        throw new Error('Passkey vault envelope requires a nonce.');
+    }
     if (algorithm !== passkeyVaultAlgorithm) {
         throw new Error('Passkey vault envelope algorithm is not supported.');
     }
@@ -126,7 +139,7 @@ export const toPasskeyVaultEnvelopeData = ({ encryptedMnemonic, salt, nonce, alg
     return {
         algorithm,
         keyVersion,
-        ciphertext: encryptedMnemonic,
+        ciphertext: encryptedVault,
         salt,
         nonce
     };

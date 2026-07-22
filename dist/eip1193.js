@@ -23,6 +23,8 @@ export const createPasskeyWalletProvider = ({ wallet, chain, rpcUrl, switchChain
     });
     const request = (async ({ method, params }) => {
         const requestParams = Array.isArray(params) ? params : [];
+        const exportSeedPhrase = actions.exportPasskeyWalletSeedPhrase ??
+            actions.exportPasskeyWalletRecoveryPhrase;
         switch (method) {
             case 'eth_requestAccounts':
             case 'eth_accounts':
@@ -63,8 +65,12 @@ export const createPasskeyWalletProvider = ({ wallet, chain, rpcUrl, switchChain
                         : undefined
                 });
             }
+            case 'organigram_exportSeedPhrase':
             case 'organigram_exportRecoveryPhrase':
-                return await actions.exportPasskeyWalletRecoveryPhrase({
+                if (exportSeedPhrase == null) {
+                    throw new Error('Seed phrase export is not available.');
+                }
+                return await exportSeedPhrase({
                     expectedAddress: wallet.address
                 });
             default: {

@@ -3,7 +3,7 @@ import { type PasskeyVaultEnvelopeData } from './crypto';
 export declare const passkeyChallengeTtlMs: number;
 export type PasskeyVaultEnvelopeInput = {
     address: string;
-    encryptedMnemonic: string;
+    encryptedVault: string;
     salt: string;
     nonce: string;
     algorithm: string;
@@ -12,10 +12,12 @@ export type PasskeyVaultEnvelopeInput = {
 export declare const validatePasskeyVaultEnvelopeInput: (input: PasskeyVaultEnvelopeInput) => PasskeyVaultEnvelopeInput & {
     address: `0x${string}`;
 };
+export type ValidatedPasskeyVaultEnvelope = ReturnType<typeof validatePasskeyVaultEnvelopeInput>;
 export declare const createPasskeyChallengeExpiry: () => Date;
 export declare const getWebAuthnClientDataChallenge: (response: unknown) => string;
-export declare const createPasskeyRegistrationOptions: ({ rpId, userAddress, email }: {
+export declare const createPasskeyRegistrationOptions: ({ rpId, rpName, userAddress, email }: {
     rpId: string;
+    rpName?: string;
     userAddress?: string | null;
     email?: string | null;
 }) => Promise<import("@simplewebauthn/server").PublicKeyCredentialCreationOptionsJSON>;
@@ -30,9 +32,7 @@ export declare const verifyPasskeyRegistration: ({ response, expectedChallenge, 
     envelope: PasskeyVaultEnvelopeInput;
 }) => Promise<{
     verification: VerifiedPasskeyRegistrationResponse;
-    vaultEnvelope: PasskeyVaultEnvelopeInput & {
-        address: `0x${string}`;
-    };
+    vaultEnvelope: ValidatedPasskeyVaultEnvelope;
 }>;
 export declare const createPasskeyAuthenticationOptions: ({ rpId, credentials }: {
     rpId: string;
@@ -52,8 +52,8 @@ export declare const verifyPasskeyAuthentication: ({ response, expectedChallenge
         signCount: number;
     };
 }) => Promise<Awaited<ReturnType<typeof verifyAuthenticationResponse>>>;
-export declare const toPasskeyVaultEnvelopeData: ({ encryptedMnemonic, salt, nonce, algorithm, keyVersion }: {
-    encryptedMnemonic: string;
+export declare const toPasskeyVaultEnvelopeData: ({ encryptedVault, salt, nonce, algorithm, keyVersion }: {
+    encryptedVault: string;
     salt: string;
     nonce: string;
     algorithm: string;
