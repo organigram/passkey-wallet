@@ -1,6 +1,6 @@
 {
   "name": "@organigram/passkey-wallet",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Organigram Passkey Wallet.",
   "author": "Organigram (https://organigram.ai)",
   "license": "MIT",
