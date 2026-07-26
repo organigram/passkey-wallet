@@ -1,4 +1,4 @@
-import type { OrganigramPasskeyCapabilities, UnlockedPasskeyWallet } from './types';
+import type { UnlockedPasskeyWallet } from './types';
 import { type PasskeyWalletVaultPayload } from './vault';
 export declare const unlockedPasskeyWalletTtlMs: number;
 export declare const createUnlockedPasskeyWallet: ({ address, credentialId, vaultPayload, now }: {
@@ -7,9 +7,7 @@ export declare const createUnlockedPasskeyWallet: ({ address, credentialId, vaul
     vaultPayload: PasskeyWalletVaultPayload;
     now?: number;
 }) => UnlockedPasskeyWallet;
-export declare const createNewPasskeyWalletVault: ({ capabilities }: {
-    capabilities: OrganigramPasskeyCapabilities;
-}) => Promise<{
+export declare const createNewPasskeyWalletVault: () => Promise<{
     address: `0x${string}`;
     vaultPayload: PasskeyWalletVaultPayload;
 }>;

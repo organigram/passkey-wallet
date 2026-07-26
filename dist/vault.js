@@ -1,10 +1,8 @@
-import { createEncryptionKeyVersion, exportUserPrivateKey, exportUserPublicKey, generateUserEncryptionKeyPair } from '@organigram/js';
-export const serializePasskeyWalletVaultPayload = ({ recoveryPhrase, userEncryptionPrivateKey, userEncryptionPublicKey, userEncryptionKeyVersion }) => JSON.stringify({
+import { createWalletEncryptionKeyPair, parseWalletEncryptionKeyPair } from './encryption';
+export const serializePasskeyWalletVaultPayload = ({ recoveryPhrase, walletEncryptionKey }) => JSON.stringify({
     version: 1,
     recoveryPhrase,
-    userEncryptionPrivateKey,
-    userEncryptionPublicKey,
-    userEncryptionKeyVersion
+    ...(walletEncryptionKey == null ? {} : { walletEncryptionKey })
 });
 export const parsePasskeyWalletVaultPayload = (plaintext) => {
     const payload = JSON.parse(plaintext);
@@ -15,27 +13,18 @@ export const parsePasskeyWalletVaultPayload = (plaintext) => {
         payload.recoveryPhrase.trim() === '') {
         throw new Error('Passkey wallet vault is missing its recovery phrase.');
     }
-    if (payload.userEncryptionPrivateKey == null) {
-        throw new Error('Passkey wallet vault is missing its IPFS private key.');
-    }
-    if (payload.userEncryptionPublicKey == null) {
-        throw new Error('Passkey wallet vault is missing its IPFS public key.');
-    }
-    if (!Number.isInteger(payload.userEncryptionKeyVersion) ||
-        payload.userEncryptionKeyVersion == null) {
-        throw new Error('Passkey wallet vault has an invalid IPFS key version.');
-    }
-    return payload;
-};
-export const createPasskeyWalletVaultPayload = async (recoveryPhrase) => {
-    const userEncryptionKeyPair = await generateUserEncryptionKeyPair();
-    const userEncryptionPrivateKey = await exportUserPrivateKey(userEncryptionKeyPair);
-    const userEncryptionPublicKey = await exportUserPublicKey(userEncryptionKeyPair);
     return {
         version: 1,
-        recoveryPhrase,
-        userEncryptionPrivateKey,
-        userEncryptionPublicKey,
-        userEncryptionKeyVersion: createEncryptionKeyVersion()
+        recoveryPhrase: payload.recoveryPhrase,
+        ...(payload.walletEncryptionKey == null
+            ? {}
+            : {
+                walletEncryptionKey: parseWalletEncryptionKeyPair(payload.walletEncryptionKey)
+            })
     };
 };
+export const createPasskeyWalletVaultPayload = async (recoveryPhrase) => ({
+    version: 1,
+    recoveryPhrase,
+    walletEncryptionKey: await createWalletEncryptionKeyPair()
+});

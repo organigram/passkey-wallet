@@ -1,14 +1,15 @@
 export const passkeyVaultAlgorithm = 'AES-GCM-HKDF-SHA-256';
 export const passkeyVaultKeyVersion = 1;
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
-const getCrypto = () => {
-    if (globalThis.crypto == null) {
+export const textEncoder = new TextEncoder();
+export const textDecoder = new TextDecoder();
+export const getCrypto = () => {
+    if (globalThis.crypto?.subtle == null) {
         throw new Error('WebCrypto is not available in this environment.');
     }
     return globalThis.crypto;
 };
-const toArrayBuffer = (bytes) => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+export const toArrayBuffer = (bytes) => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+export const randomBytes = (length) => getCrypto().getRandomValues(new Uint8Array(length));
 export const bytesToBase64Url = (bytes) => bytesToBase64(bytes)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
@@ -58,7 +59,7 @@ export const derivePasskeyVaultKey = async ({ prfOutput, salt }) => {
         length: 256
     }, false, ['encrypt', 'decrypt']);
 };
-export const encryptPasskeyVaultSecret = async ({ plaintext, key, salt, nonce = getCrypto().getRandomValues(new Uint8Array(12)) }) => {
+export const encryptPasskeyVaultSecret = async ({ plaintext, key, salt, nonce = randomBytes(12) }) => {
     if (plaintext.trim() === '') {
         throw new Error('Passkey wallet vault plaintext cannot be empty.');
     }

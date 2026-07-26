@@ -75,20 +75,32 @@ The package provides wallet, WebAuthn, vault, provider, and RainbowKit building
 blocks. You own the product surface. No hosted signer, no mandatory backend
 service, no strings attached.
 
+## Wallet UI
+
+This package builds a production-ready app used to serve the wallet locally or on custom domains. 
+
+```sh
+pnpm dev
+pnpm build:artifact
+```
+
+`build:artifact` builds the TypeScript library, typechecks the Vite app, writes
+the app build to `app-dist`, and packages a deterministic
+`artifacts/passkey-wallet-app-v<version>.tar.gz` with a `.sha256` checksum and
+manifest.
+
 ## What You Get
 
 Passkey Wallet is built for production UX:
 
 - users unlock and sign with passkeys;
 - backup passkeys can be added to the same address;
-- compromised or obsolete passkeys can be rotated out by the host app;
+- compromised or obsolete passkeys can be rotated;
 - recovery phrases can be exported for disaster recovery;
 - the same EOA works on every supported EVM chain without deploying anything;
-- the package is headless, so product teams own the UI;
-- all sensitive wallet material is encrypted client-side before persistence.
+- all sensitive wallet material is encrypted client-side before any persistence.
 
-It is also intentionally boring where it should be boring: the address is a
-standard EOA, the dapp integration is EIP-1193, the RainbowKit integration is a
+The address is a standard EOA, the dapp integration is EIP-1193, the RainbowKit integration is a
 wallet descriptor, and the WebAuthn server helpers are explicit about
 registration, authentication, challenges, origins, RP IDs, counters, and vault
 envelopes.
@@ -137,30 +149,32 @@ simple and compatible with existing web3 infrastructure.
 
 ## Quick Start
 
-Create a browser API client:
+Create and unlock vaults in the UI with wallet
+helpers:
 
 ```ts
 import {
-  createFetchPasskeyWalletApiClient,
-  unlockOrCreatePasskeyWallet
-} from '@organigram/passkey-wallet/webauthn-client'
-import { buildPasskeyWalletCapabilities } from '@organigram/passkey-wallet'
+  createGeneratedRecoveryPhrase,
+  registerBrowserPasskeyVault,
+  unlockBrowserPasskeyVault
+} from '@organigram/passkey-wallet/browser-wallet'
 
-const api = createFetchPasskeyWalletApiClient('/api/auth/passkey')
-
-const wallet = await unlockOrCreatePasskeyWallet({
-  api,
-  capabilities: buildPasskeyWalletCapabilities(),
-  targetChainId: 1
+const registration = await registerBrowserPasskeyVault({
+  recoveryPhrase: createGeneratedRecoveryPhrase(),
+  name: 'Account 1'
 })
 
-const signature = await wallet.account.signMessage({
+const unlocked = await unlockBrowserPasskeyVault({
+  records: [registration.record]
+})
+
+const signature = await unlocked.wallet.account.signMessage({
   message: 'gm'
 })
 ```
 
-That is the headless primitive. Most apps will wrap it in the RainbowKit adapter
-below so the passkey wallet appears next to other connection methods.
+The passkey ceremony and vault decryption happen in the wallet origin. Dapps
+should integrate through the remote connector.
 
 ## RainbowKit Integration
 
@@ -168,34 +182,12 @@ below so the passkey wallet appears next to other connection methods.
 import { connectorsForWallets } from '@rainbow-me/rainbowkit'
 import { createConfig, http } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
-import { createOrganigramPasskeyWallet } from '@organigram/passkey-wallet/rainbowkit'
 import {
-  createFetchPasskeyWalletApiClient,
-  unlockOrCreatePasskeyWallet,
-  registerAdditionalPasskeyCredential,
-  exportPasskeyWalletRecoveryPhrase
-} from '@organigram/passkey-wallet/webauthn-client'
+  createOrganigramRemotePasskeyWallet
+} from '@organigram/passkey-wallet/remote-rainbowkit'
 
-const api = createFetchPasskeyWalletApiClient('/api/auth/passkey')
-
-const passkeyWallet = createOrganigramPasskeyWallet({
-  unlockOrCreatePasskeyWallet: async input =>
-    await unlockOrCreatePasskeyWallet({
-      api,
-      capabilities: input.capabilities,
-      targetChainId: input.targetChainId
-    }),
-  registerAdditionalPasskeyCredential: async input =>
-    await registerAdditionalPasskeyCredential({
-      api,
-      wallet: input.wallet,
-      name: input.name
-    }),
-  exportPasskeyWalletRecoveryPhrase: async input =>
-    await exportPasskeyWalletRecoveryPhrase({
-      api,
-      expectedAddress: input.expectedAddress
-    })
+const passkeyWallet = createOrganigramRemotePasskeyWallet({
+  walletOrigin: 'https://wallet.organigram.ai'
 })
 
 export const wagmiConfig = createConfig({
@@ -221,87 +213,13 @@ export const wagmiConfig = createConfig({
 
 From the dapp's perspective, this behaves like a wallet. Calling
 `personal_sign`, `eth_signTypedData_v4`, or `eth_sendTransaction` goes through
-the unlocked EOA account behind the passkey vault.
+the wallet origin, where the user approves the request.
 
 ## Server Responsibilities
 
-This package does not hide persistence behind a hosted service. Your app owns the
-server boundary.
-
-At minimum, store:
-
-- short-lived WebAuthn challenges;
-- credential IDs;
-- credential public keys;
-- credential transports;
-- signature counters;
-- the wallet address linked to each credential;
-- encrypted vault envelopes for each credential.
-
-Typical endpoints:
-
-```txt
-POST /api/auth/passkey/register/options
-POST /api/auth/passkey/register/verify
-POST /api/auth/passkey/unlock/options
-POST /api/auth/passkey/unlock/verify
-```
-
-The server helpers generate WebAuthn options and verify responses, but your app
-decides how to persist credentials, consume challenges, enforce origin/RP ID
-rules, and link credentials to users.
-
-## Suggested Data Model
-
-The package does not require a specific database, but a production integration
-usually needs records shaped like this:
-
-```ts
-type PasskeyCredential = {
-  credentialId: string
-  userAddress: `0x${string}`
-  publicKey: string
-  transports: string[]
-  signCount: number
-  createdAt: Date
-  updatedAt: Date
-}
-
-type PasskeyVaultEnvelope = {
-  credentialId: string
-  userAddress: `0x${string}`
-  encryptedVault: string
-  salt: string
-  nonce: string
-  algorithm: string
-  keyVersion: number
-  createdAt: Date
-}
-
-type PasskeyChallenge = {
-  challenge: string
-  type: 'registration' | 'authentication'
-  expiresAt: Date
-  consumedAt?: Date
-}
-```
-
-Use short challenge TTLs, consume challenges exactly once, and enforce uniqueness
-for credential IDs.
-
-`createPasskeyRegistrationOptions` accepts a configurable `rpName`:
-
-```ts
-const options = await createPasskeyRegistrationOptions({
-  rpId: 'example.com',
-  rpName: 'Example Wallet',
-  userAddress
-})
-```
-
-The registration envelope uses `encryptedVault` for the encrypted vault
-ciphertext. API contracts should store and document the value as an encrypted
-vault because the plaintext can contain more than a recovery phrase.
+The wallet app is static. A server is optional and should only receive encrypted
+backup packages or dapp sign-in challenges. It should not create WebAuthn
+credentials, unlock vaults, or receive decrypted wallet material.
 
 ## Backup Keys And Rotation
 

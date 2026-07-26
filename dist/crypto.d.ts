@@ -28,6 +28,11 @@ type PrfSupportCredential = {
         };
     };
 };
+export declare const textEncoder: TextEncoder;
+export declare const textDecoder: TextDecoder;
+export declare const getCrypto: () => Crypto;
+export declare const toArrayBuffer: (bytes: Uint8Array) => ArrayBuffer;
+export declare const randomBytes: (length: number) => Uint8Array;
 export declare const bytesToBase64Url: (bytes: Uint8Array) => string;
 export declare const base64UrlToBytes: (value: string) => Uint8Array;
 export declare const derivePasskeyVaultKey: ({ prfOutput, salt }: DerivePasskeyVaultKeyInput) => Promise<CryptoKey>;

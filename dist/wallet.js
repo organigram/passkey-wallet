@@ -7,24 +7,17 @@ export const createUnlockedPasskeyWallet = ({ address, credentialId, vaultPayloa
         address,
         account,
         recoveryPhrase: vaultPayload.recoveryPhrase,
-        userEncryptionPrivateKey: vaultPayload.userEncryptionPrivateKey,
-        userEncryptionPublicKey: vaultPayload.userEncryptionPublicKey,
-        userEncryptionKeyVersion: vaultPayload.userEncryptionKeyVersion,
+        walletEncryptionKey: vaultPayload.walletEncryptionKey,
         credentialId,
         expiresAt: now + unlockedPasskeyWalletTtlMs
     };
 };
-export const createNewPasskeyWalletVault = async ({ capabilities }) => {
+export const createNewPasskeyWalletVault = async () => {
     const recoveryPhrase = generateMnemonic(english, 128);
     const vaultPayload = await createPasskeyWalletVaultPayload(recoveryPhrase);
     const account = mnemonicToAccount(recoveryPhrase);
     return {
         address: account.address,
-        vaultPayload: {
-            ...vaultPayload,
-            recoveryPhrase: capabilities.method === 'register'
-                ? vaultPayload.recoveryPhrase
-                : vaultPayload.recoveryPhrase
-        }
+        vaultPayload
     };
 };
