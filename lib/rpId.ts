@@ -9,11 +9,39 @@ export const normalizeHostname = (hostname: unknown): string =>
     ? hostname.trim().replace(/^\./, '').toLowerCase()
     : ''
 
+const knownMultiLabelPublicSuffixes = [
+  'vercel.app',
+  'pages.dev',
+  'netlify.app',
+  'web.app'
+]
+
+const inferKnownPlatformRpId = (hostname: string): string | undefined => {
+  for (const suffix of knownMultiLabelPublicSuffixes) {
+    if (hostname === suffix) return hostname
+    if (!hostname.endsWith(`.${suffix}`)) continue
+
+    const labels = hostname.split('.').filter(Boolean)
+    const suffixLabels = suffix.split('.')
+    const rpIdLabelCount = suffixLabels.length + 1
+
+    return labels.length <= rpIdLabelCount
+      ? hostname
+      : labels.slice(-rpIdLabelCount).join('.')
+  }
+}
+
+const isKnownPublicSuffix = (hostname: string): boolean =>
+  knownMultiLabelPublicSuffixes.includes(hostname)
+
 export const inferPasskeyRpId = (hostname: string): string => {
   const normalizedHostname = normalizeHostname(hostname)
   if (normalizedHostname === '' || isLocalHostname(normalizedHostname)) {
     return normalizedHostname
   }
+
+  const platformRpId = inferKnownPlatformRpId(normalizedHostname)
+  if (platformRpId != null) return platformRpId
 
   const labels = normalizedHostname.split('.').filter(Boolean)
   const localLabelIndex = labels.indexOf('local')
@@ -30,7 +58,20 @@ export const isHostnameCompatibleWithRpId = ({
 }: {
   hostname: string
   rpId: string
-}): boolean =>
-  (isLocalHostname(hostname) && isLocalHostname(rpId)) ||
-  hostname === rpId ||
-  hostname.endsWith(`.${rpId}`)
+}): boolean => {
+  const normalizedHostname = normalizeHostname(hostname)
+  const normalizedRpId = normalizeHostname(rpId)
+
+  if (normalizedHostname === '' || normalizedRpId === '') return false
+  if (isLocalHostname(normalizedHostname) || isLocalHostname(normalizedRpId)) {
+    return (
+      isLocalHostname(normalizedHostname) && isLocalHostname(normalizedRpId)
+    )
+  }
+  if (isKnownPublicSuffix(normalizedRpId)) return false
+
+  return (
+    normalizedHostname === normalizedRpId ||
+    normalizedHostname.endsWith(`.${normalizedRpId}`)
+  )
+}

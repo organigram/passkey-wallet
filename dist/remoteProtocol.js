@@ -6,8 +6,7 @@ export const passkeyWalletSignMessageResultType = 'organigram:wallet:sign-messag
 export const passkeyWalletDisconnectType = 'organigram:wallet:disconnect';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
-    ? process.env.NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL?.trim() ||
-        undefined
+    ? process.env.NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL?.trim() || undefined
     : undefined;
 const requireHttpsOrigin = (value, field) => {
     const url = new URL(value);
@@ -31,12 +30,11 @@ const requireChainId = (value) => {
     return chainId;
 };
 const createRequestId = () => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    if (typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    return `req_${Date.now().toString(36)}_${Math.random()
-        .toString(36)
-        .slice(2)}`;
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 };
 export const buildPasskeyWalletRemotePopupUrl = ({ walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin, appOrigin = window.location.origin, type, chainId, requestId = createRequestId(), requestedAt = new Date().toISOString(), address, message }) => {
     const normalizedAppOrigin = requireHttpsOrigin(appOrigin, 'appOrigin').origin;
