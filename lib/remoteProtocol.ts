@@ -1,14 +1,11 @@
 import { normalizeHost, requireString } from './protocol'
 
 export const passkeyWalletConnectType = 'organigram:wallet:connect'
-export const passkeyWalletConnectResultType =
-  'organigram:wallet:connect-result'
-export const passkeyWalletSignMessageType =
-  'organigram:wallet:sign-message'
+export const passkeyWalletConnectResultType = 'organigram:wallet:connect-result'
+export const passkeyWalletSignMessageType = 'organigram:wallet:sign-message'
 export const passkeyWalletSignMessageResultType =
   'organigram:wallet:sign-message-result'
-export const passkeyWalletDisconnectType =
-  'organigram:wallet:disconnect'
+export const passkeyWalletDisconnectType = 'organigram:wallet:disconnect'
 
 export type PasskeyWalletRemoteRequestType =
   | typeof passkeyWalletConnectType
@@ -25,27 +22,24 @@ type PasskeyWalletRemoteRequestBase = {
   requestedAt: string
 }
 
-export type PasskeyWalletConnectRequest =
-  PasskeyWalletRemoteRequestBase & {
-    type: typeof passkeyWalletConnectType
-  }
+export type PasskeyWalletConnectRequest = PasskeyWalletRemoteRequestBase & {
+  type: typeof passkeyWalletConnectType
+}
 
-export type PasskeyWalletSignMessageRequest =
-  PasskeyWalletRemoteRequestBase & {
-    type: typeof passkeyWalletSignMessageType
-    address: `0x${string}`
-    message: string
-  }
+export type PasskeyWalletSignMessageRequest = PasskeyWalletRemoteRequestBase & {
+  type: typeof passkeyWalletSignMessageType
+  address: `0x${string}`
+  message: string
+}
 
 export type PasskeyWalletRemoteRequest =
   | PasskeyWalletConnectRequest
   | PasskeyWalletSignMessageRequest
 
-export type PasskeyWalletDisconnectRequest =
-  PasskeyWalletRemoteRequestBase & {
-    type: typeof passkeyWalletDisconnectType
-    address: `0x${string}`
-  }
+export type PasskeyWalletDisconnectRequest = PasskeyWalletRemoteRequestBase & {
+  type: typeof passkeyWalletDisconnectType
+  address: `0x${string}`
+}
 
 type PasskeyWalletRemoteResultBase = {
   version: 1
@@ -56,17 +50,15 @@ type PasskeyWalletRemoteResultBase = {
   completedAt: string
 }
 
-export type PasskeyWalletConnectResult =
-  PasskeyWalletRemoteResultBase & {
-    type: typeof passkeyWalletConnectResultType
-  }
+export type PasskeyWalletConnectResult = PasskeyWalletRemoteResultBase & {
+  type: typeof passkeyWalletConnectResultType
+}
 
-export type PasskeyWalletSignMessageResult =
-  PasskeyWalletRemoteResultBase & {
-    type: typeof passkeyWalletSignMessageResultType
-    message: string
-    signature: `0x${string}`
-  }
+export type PasskeyWalletSignMessageResult = PasskeyWalletRemoteResultBase & {
+  type: typeof passkeyWalletSignMessageResultType
+  message: string
+  signature: `0x${string}`
+}
 
 export type PasskeyWalletRemoteResult =
   | PasskeyWalletConnectResult
@@ -80,8 +72,7 @@ export type PasskeyWalletRemotePopupInput = {
   requestedAt?: string
 }
 
-export type PasskeyWalletConnectPopupInput =
-  PasskeyWalletRemotePopupInput
+export type PasskeyWalletConnectPopupInput = PasskeyWalletRemotePopupInput
 
 export type PasskeyWalletSignMessagePopupInput =
   PasskeyWalletRemotePopupInput & {
@@ -124,13 +115,14 @@ const requireChainId = (value: unknown): number => {
 }
 
 const createRequestId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID()
   }
 
-  return `req_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2)}`
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
 }
 
 export const buildPasskeyWalletRemotePopupUrl = ({
@@ -338,14 +330,12 @@ export const requestPasskeyWalletConnect = async ({
     requestId
   })
 
-  return await requestPasskeyWalletRemoteResult<PasskeyWalletConnectResult>(
-    {
-      popupUrl,
-      requestId,
-      expectedResultType: passkeyWalletConnectResultType,
-      timeoutMs
-    }
-  )
+  return await requestPasskeyWalletRemoteResult<PasskeyWalletConnectResult>({
+    popupUrl,
+    requestId,
+    expectedResultType: passkeyWalletConnectResultType,
+    timeoutMs
+  })
 }
 
 export const requestPasskeyWalletSignMessage = async ({

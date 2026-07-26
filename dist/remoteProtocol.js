@@ -6,7 +6,8 @@ export const passkeyWalletSignMessageResultType = 'organigram:wallet:sign-messag
 export const passkeyWalletDisconnectType = 'organigram:wallet:disconnect';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
-    ? process.env.NEXT_PUBLIC_ORGANIGRAM_WALLET_URL?.trim() || undefined
+    ? process.env.NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL?.trim() ||
+        undefined
     : undefined;
 const requireHttpsOrigin = (value, field) => {
     const url = new URL(value);

@@ -1,7 +1,8 @@
 import { passkeyWalletSignInResultType, passkeyWalletSignInType } from './signInProtocol';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
-    ? process.env.NEXT_PUBLIC_ORGANIGRAM_WALLET_URL?.trim() || undefined
+    ? process.env.NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL?.trim() ||
+        undefined
     : undefined;
 const createRequestId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

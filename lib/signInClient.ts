@@ -56,7 +56,10 @@ const getConfiguredWalletOrigin = (): string | undefined =>
     : undefined
 
 const createRequestId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID()
   }
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
@@ -71,7 +74,10 @@ export const buildPasskeyWalletSignInPopupUrl = ({
   requestedAt = new Date().toISOString()
 }: PasskeyWalletPopupInput): URL => {
   const normalizedAppOrigin = new URL(appOrigin).origin
-  const challengeUrl = new URL('/api/auth/wallet/challenge', normalizedAppOrigin)
+  const challengeUrl = new URL(
+    '/api/auth/wallet/challenge',
+    normalizedAppOrigin
+  )
   challengeUrl.searchParams.set('nonce', nonce)
   challengeUrl.searchParams.set('chainId', chainId.toString())
 
@@ -229,11 +235,7 @@ export const notifyCurrentTabNextAuthSessionChanged = (): void => {
 const openPasskeyWalletPopupShell = (): Window | null | undefined => {
   if (typeof window === 'undefined') return undefined
 
-  return window.open(
-    '',
-    'passkey-wallet-sign-in',
-    'popup,width=480,height=720'
-  )
+  return window.open('', 'passkey-wallet-sign-in', 'popup,width=480,height=720')
 }
 
 export const signInWithPasskeyWallet = async ({
