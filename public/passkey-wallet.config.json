@@ -5,6 +5,8 @@
   "stackOrigin": "",
   "defaultChainId": 11155111,
   "defaultRpcUrl": "",
+  "rpcUrlTemplate": "",
+  "rpcUrls": {},
   "theme": {
     "logoUrl": "/png/logo-gradient.png",
     "backgroundUrl": "/transparent-glass.jpg",

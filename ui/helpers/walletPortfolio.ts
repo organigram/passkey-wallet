@@ -65,6 +65,14 @@ export const parseConfiguredChainId = (): number => {
 
 export const configuredChainId = parseConfiguredChainId()
 export const configuredRpcUrl = getWalletRuntimeConfig().defaultRpcUrl.trim()
+export const configuredRpcUrlTemplate =
+  getWalletRuntimeConfig().rpcUrlTemplate.trim()
+export const configuredRpcUrls = getWalletRuntimeConfig().rpcUrls
+
+const getConfiguredRpcUrlFromTemplate = (chainId: number): string =>
+  configuredRpcUrlTemplate === ''
+    ? ''
+    : configuredRpcUrlTemplate.replaceAll('{chainId}', chainId.toString())
 
 export type WalletNetworkOption = {
   key: WalletNetworkKey
@@ -135,10 +143,19 @@ export const showTestWalletNetworksStorageKey =
 export const getConfiguredRpcUrlForChain = (
   chain: Chain,
   fallbackRpcUrl = ''
-): string =>
-  configuredChainId === chain.id && configuredRpcUrl !== ''
+): string => {
+  const configuredRpcUrlForChain = configuredRpcUrls[String(chain.id)]?.trim()
+  if (configuredRpcUrlForChain != null && configuredRpcUrlForChain !== '') {
+    return configuredRpcUrlForChain
+  }
+
+  const templatedRpcUrl = getConfiguredRpcUrlFromTemplate(chain.id)
+  if (templatedRpcUrl !== '') return templatedRpcUrl
+
+  return configuredChainId === chain.id && configuredRpcUrl !== ''
     ? configuredRpcUrl
     : fallbackRpcUrl
+}
 
 export const builtinMainnetWalletNetworkOptions: WalletNetworkOption[] = [
   {

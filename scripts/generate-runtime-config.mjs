@@ -118,6 +118,55 @@ const readUrl = (profile, key, fallback) => {
   return url.toString()
 }
 
+const normalizeRpcUrls = value => {
+  if (!isRecord(value)) return {}
+
+  const rpcUrls = {}
+  for (const [rawChainId, rawUrl] of Object.entries(value)) {
+    const chainId = Number(rawChainId)
+    if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+      throw new Error(`RPC URL chain id must be a positive integer: ${rawChainId}`)
+    }
+    if (typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+      throw new Error(`RPC URL for chain ${rawChainId} must be a non-empty string.`)
+    }
+
+    const url = new URL(rawUrl.trim())
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error(`RPC URL for chain ${rawChainId} must be an HTTP(S) URL.`)
+    }
+
+    rpcUrls[String(chainId)] = url.toString()
+  }
+
+  return rpcUrls
+}
+
+const readRpcUrls = (profile, fallback) => {
+  const fallbackRpcUrls = normalizeRpcUrls(fallback)
+  const raw = readEnv(profile, 'RPC_URLS', '')
+  if (raw === '') return fallbackRpcUrls
+
+  const parsed = JSON.parse(raw)
+  return normalizeRpcUrls(parsed)
+}
+
+const readRpcUrlTemplate = (profile, fallback) => {
+  const value = readString(profile, 'RPC_URL_TEMPLATE', fallback ?? '')
+  if (value === '') return value
+  if (!value.includes('{chainId}')) {
+    throw new Error('PASSKEY_WALLET_RPC_URL_TEMPLATE must include {chainId}.')
+  }
+
+  const probeUrl = value.replaceAll('{chainId}', '1')
+  const url = new URL(probeUrl)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('PASSKEY_WALLET_RPC_URL_TEMPLATE must be an HTTP(S) URL.')
+  }
+
+  return value
+}
+
 const readColor = (profile, key, fallback) => {
   const value = readString(profile, key, fallback)
   if (!/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))$/.test(value)) {
@@ -156,6 +205,8 @@ const createRuntimeConfig = (currentConfig, profile) => ({
     'DEFAULT_RPC_URL',
     currentConfig.defaultRpcUrl
   ),
+  rpcUrlTemplate: readRpcUrlTemplate(profile, currentConfig.rpcUrlTemplate),
+  rpcUrls: readRpcUrls(profile, currentConfig.rpcUrls),
   theme: {
     logoUrl: readUrl(profile, 'LOGO_URL', currentConfig.theme.logoUrl),
     backgroundUrl: readUrl(

@@ -25,6 +25,8 @@ export type WalletRuntimeConfig = {
   stackOrigin: string
   defaultChainId: number
   defaultRpcUrl: string
+  rpcUrlTemplate: string
+  rpcUrls: Record<string, string>
   theme: WalletRuntimeThemeConfig
 }
 
@@ -81,6 +83,35 @@ const readPositiveInteger = (value: unknown, fallback: number): number =>
     ? value
     : fallback
 
+const readRpcUrls = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) return {}
+
+  const rpcUrls: Record<string, string> = {}
+  for (const [chainId, rpcUrl] of Object.entries(value)) {
+    const parsedChainId = Number(chainId)
+    if (!Number.isSafeInteger(parsedChainId) || parsedChainId <= 0) continue
+
+    const parsedRpcUrl = readUrl(rpcUrl, '')
+    if (parsedRpcUrl === '') continue
+
+    rpcUrls[String(parsedChainId)] = parsedRpcUrl
+  }
+
+  return rpcUrls
+}
+
+const readRpcUrlTemplate = (value: unknown, fallback: string): string =>
+  readString(value, fallback, candidate => {
+    if (!candidate.includes('{chainId}')) return false
+
+    try {
+      const url = new URL(candidate.replaceAll('{chainId}', '1'))
+      return url.protocol === 'https:' || url.protocol === 'http:'
+    } catch {
+      return false
+    }
+  })
+
 const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
   if (!isRecord(value) || value.version !== 1) {
     return defaultWalletRuntimeConfig
@@ -107,6 +138,11 @@ const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
       value.defaultRpcUrl,
       defaultWalletRuntimeConfig.defaultRpcUrl
     ),
+    rpcUrlTemplate: readRpcUrlTemplate(
+      value.rpcUrlTemplate,
+      defaultWalletRuntimeConfig.rpcUrlTemplate
+    ),
+    rpcUrls: readRpcUrls(value.rpcUrls),
     theme: {
       logoUrl: readUrl(theme.logoUrl, defaultWalletRuntimeConfig.theme.logoUrl),
       backgroundUrl: readUrl(
