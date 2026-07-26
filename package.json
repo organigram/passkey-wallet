@@ -111,9 +111,10 @@
   "scripts": {
     "docs:generate": "env-cmd --silent tsx ../docs/scripts/generatePackageTypeScriptReference.ts . passkey-wallet",
     "build:lib": "tsc -p tsconfig.build.json --pretty",
-    "build:app": "pnpm run app:icons && vite build",
+    "build:app": "pnpm run app:config && pnpm run app:icons && vite build",
     "build:artifact": "node scripts/package-artifact.mjs",
     "build": "pnpm build:lib && pnpm build:app && pnpm build:artifact",
+    "app:config": "node scripts/generate-runtime-config.mjs",
     "app:icons": "node scripts/generate-rainbowkit-network-icons.mjs",
     "app:cert": "node scripts/generate-certs.mjs",
     "predev": "pnpm run build:lib",

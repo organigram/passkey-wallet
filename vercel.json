@@ -1,0 +1,23 @@
+{
+  "rewrites": [
+    {
+      "source": "/request",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/settings",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/passkey-wallet.config.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    }
+  ]
+}
