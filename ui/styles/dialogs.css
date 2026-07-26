@@ -1,0 +1,114 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  overflow: scroll;
+  place-items: center;
+  padding: 20px;
+  background: rgba(16, 28, 32, 0.38);
+  backdrop-filter: blur(8px);
+}
+
+.wallet-action-modal {
+  width: min(100%, 440px);
+  border: 1px solid rgba(220, 229, 228, 0.8);
+  border-radius: 8px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 80px rgba(13, 31, 36, 0.24);
+}
+
+.account-setup-modal {
+  width: min(100%, 520px);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.modal-heading h2 {
+  margin: 0;
+  color: #17262b;
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.modal-heading p {
+  margin: 4px 0 0;
+  color: #68787f;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.receive-modal-content,
+.send-modal-content,
+.account-setup-modal-content {
+  display: grid;
+  gap: 14px;
+}
+
+.account-setup-modal-content .account-setup-panel {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.qr-frame {
+  display: grid;
+  justify-content: center;
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  padding: 18px;
+  background: #fff;
+}
+
+.receive-modal-content code {
+  display: block;
+  overflow-wrap: anywhere;
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  padding: 12px;
+  color: #17262b;
+  background: #fbfcfc;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.send-modal-content label {
+  display: grid;
+  gap: 7px;
+  color: #526269;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 18px;
+}
+
+.gas-priority-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.priority-option {
+  border: 1px solid #d6e0df;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #31545c;
+  background: #fff;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.priority-option-active {
+  border-color: #8edbd4;
+
+  color: #0b766b;
+  background: #eefbf8;
+}

@@ -1,0 +1,133 @@
+.hero-band {
+  margin-top: 44px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid #dfe7e6;
+}
+
+.hero-band-locked {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.hero-glass-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 28px;
+  align-items: end;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 8px;
+  padding: 28px;
+  background: var(--wallet-hero-surface);
+  box-shadow: 0 24px 70px rgba(18, 34, 39, 0.14);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.hero-band-full .hero-glass-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.hero-band h1 {
+  max-width: 760px;
+  margin: 0;
+  color: #162126;
+  font-size: 58px;
+  line-height: 1;
+  font-weight: 780;
+}
+
+.hero-band p {
+  max-width: 690px;
+  margin: 18px 0 0;
+  color: #526269;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.status-panel {
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(255, 255, 255);
+  box-shadow: 0 18px 44px rgba(29, 47, 50, 0.08);
+}
+
+.status-panel span,
+.status-panel small {
+  display: block;
+  color: #66747b;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.status-panel strong {
+  display: block;
+  margin: 8px 0;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.hero-action-panel {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(220, 229, 228, 0.76);
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 18px 44px rgba(29, 47, 50, 0.06);
+}
+
+.hero-empty-actions-panel {
+  align-self: stretch;
+  align-content: center;
+}
+
+.hero-action-panel span {
+  display: block;
+  color: #6d7b82;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.hero-action-panel h2 {
+  margin: 4px 0;
+  color: #182127;
+  line-height: 28px;
+}
+
+.hero-action-panel p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #526269;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.error-banner {
+  margin-top: 20px;
+  border: 1px solid #f1b6b6;
+  border-radius: 8px;
+  padding: 13px 15px;
+  color: #8a2424;
+  background: #fff1f1;
+  font-size: 14px;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.85fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 22px;
+}
+
+.main-panel-stack,
+.side-panel-stack {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.side-panel-stack .remote-backup-panel {
+  margin-top: 0;
+}

@@ -1,0 +1,217 @@
+.request-box,
+.manual-sign-box {
+  display: grid;
+  gap: 16px;
+}
+
+.request-box dl,
+.result-panel dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.request-box dl div,
+.result-panel dl div {
+  display: grid;
+  gap: 4px;
+}
+
+.request-box .request-detail-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.72fr);
+  gap: 18px;
+}
+
+.request-box .request-detail-column {
+  display: grid;
+  gap: 12px;
+}
+
+.request-box .request-message-detail {
+  grid-column: 1 / -1;
+}
+
+.request-account-selector {
+  display: grid;
+  gap: 10px;
+}
+
+.request-floating-setup {
+  display: grid;
+  gap: 14px;
+}
+
+.request-floating-setup .account-setup-panel {
+  width: 100%;
+}
+
+.request-wallet-setup-callout {
+  border: 1px solid rgba(142, 219, 212, 0.58);
+  border-radius: 8px;
+  padding: 13px;
+  color: #25343a;
+  background: rgba(238, 251, 248);
+}
+
+.request-wallet-setup-callout strong {
+  display: block;
+  color: #0b766b;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.request-wallet-setup-callout p {
+  margin: 4px 0 0;
+  color: #526269;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.request-account-selector > span {
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.request-account-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.request-account-callout {
+  display: grid;
+  gap: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 219, 212, 0.58);
+  border-radius: 7px;
+  padding: 10px 12px;
+  color: #25343a;
+  background: rgba(238, 251, 248, 0.68);
+}
+
+.request-account-callout strong,
+.request-account-callout span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-account-callout strong {
+  color: #0b766b;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.request-account-callout span {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.request-account-list {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dce8e6;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.request-vault-group {
+  display: grid;
+  gap: 7px;
+}
+
+.request-vault-group > strong {
+  color: #182127;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.request-account-option {
+  display: flex;
+  /* grid-template-columns: minmax(0, 1fr) auto; */
+  /* gap: 10px; */
+  align-items: center;
+  min-height: 42px;
+  justify-content: space-between;
+  border: 1px solid #dce8e6;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #25343a;
+  background: rgba(255, 255, 255, 0.76);
+  /* text-align: left; */
+}
+
+.flex {
+  display: flex;
+  width: 50%;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.selected {
+  margin-right: 16px;
+}
+
+.request-account-option-active {
+  border-color: #8edbd4;
+  background: #eefbf8;
+}
+
+.request-account-option span,
+.request-account-option small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-account-option span {
+  font-size: 13px;
+
+  font-weight: 800;
+}
+
+.request-account-option small {
+  color: #526269;
+  font-size: 12px;
+}
+
+.request-account-option:hover {
+  cursor: pointer;
+}
+
+.request-account-option-active:hover {
+  cursor: not-allowed;
+}
+
+.request-message-body pre {
+  margin: 0;
+  border: 1px solid rgba(214, 224, 223, 0.76);
+  border-radius: 7px;
+  padding: 12px;
+  color: #1e2d33;
+  background: rgba(255, 255, 255, 0.72);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+dt {
+  color: #6d7b82;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1e2d33;
+  font-size: 14px;
+  line-height: 20px;
+}

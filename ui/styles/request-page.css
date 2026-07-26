@@ -1,0 +1,51 @@
+.result-panel {
+  margin-top: 18px;
+  padding: 20px;
+}
+
+.request-page {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+}
+
+.request-status {
+  box-shadow: none;
+}
+
+.request-panel {
+  grid-row: auto;
+}
+
+.request-panel h1 {
+  margin: 0;
+  color: #182127;
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.request-page-link {
+  text-decoration: none;
+}
+
+.request-account-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: center;
+  color: rgba(82, 98, 105, 0.84);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 18px;
+  text-decoration: none;
+  margin-top: 16px;
+}
+
+.request-account-link:hover {
+  color: #0b766b;
+  text-decoration: underline;
+}
+
+.request-account-link .external-link-icon {
+  flex: 0 0 auto;
+}

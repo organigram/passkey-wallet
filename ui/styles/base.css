@@ -1,0 +1,126 @@
+:root {
+  --wallet-logo-url: url('/png/logo-gradient.png');
+  --wallet-background-image: url('/transparent-glass.jpg');
+  --wallet-accent: #00c2a8;
+  --wallet-hero-surface: rgba(255, 255, 255, 0.24);
+  --wallet-text: #182127;
+  color: var(--wallet-text);
+  background: #f6f8f7;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #f7f8fb;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(247, 248, 251, 0), rgba(247, 248, 251, 0.16)),
+    var(--wallet-background-image) center / cover no-repeat,
+    #f7f8fb;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+code {
+  color: var(--wallet-accent);
+  font-size: 0.95em;
+}
+
+.background-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px 16px;
+}
+
+.background-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 22px;
+  width: min(520px, 100%);
+}
+
+.background-brand {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: var(--wallet-text);
+  font-size: 18px;
+  line-height: 24px;
+  text-align: center;
+
+}
+
+.background-brand img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.background-page .request-page {
+  gap: 14px;
+}
+
+.request-background-content {
+  width: min(600px, 100%);
+}
+
+.app-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 22px 0 52px;
+}
+
+/* .locked-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+} */
+
+.locked-wallet-center {
+  /* display: grid;
+  align-content: flex-start; */
+  min-height: 0;
+  padding: 28px 0 72px;
+  margin-top: 54px;
+}

@@ -1,0 +1,139 @@
+.background-content .remote-backup-panel {
+  margin-top: 0;
+}
+
+.remote-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.backup-status {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfcfc;
+}
+
+.backup-status span {
+  color: #182127;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 20px;
+}
+
+.backup-status p {
+  margin: 0;
+  color: #68787f;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.backup-status-backed-up {
+  border-color: #b8e6e0;
+  background: #eefbf8;
+}
+
+.backup-status-missing,
+.backup-status-outdated,
+.backup-status-unavailable {
+  border-color: #f4d4aa;
+  background: #fff8ed;
+}
+
+.seed-phrase-box {
+  margin-top: 14px;
+  border: 1px solid #f4d4aa;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff8ed;
+}
+
+.seed-phrase-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.seed-phrase-heading strong {
+  color: #182127;
+  font-size: 13px;
+}
+
+.seed-phrase-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.seed-word-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.seed-word-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid #f0d7b5;
+  border-radius: 7px;
+  padding: 8px 9px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.seed-word-card span {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: #8a5a1d;
+  background: #fff0db;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+
+.seed-word-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #4e3314;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-encryption-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wallet-encryption-import,
+.wallet-encryption-file {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.wallet-encryption-import label,
+.wallet-encryption-file label {
+  display: grid;
+  gap: 8px;
+  color: rgba(24, 33, 39, 0.72);
+  font-size: 0.82rem;
+}
+
+.wallet-encryption-import textarea {
+  min-height: 120px;
+  resize: vertical;
+}

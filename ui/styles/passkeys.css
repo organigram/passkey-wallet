@@ -1,0 +1,154 @@
+.active-passkey-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.active-passkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #edf2f1;
+  border-radius: 7px;
+  padding: 12px;
+  background: #fbfcfc;
+}
+
+.active-passkey-row strong,
+.active-passkey-row span {
+  display: block;
+}
+
+.active-passkey-row strong {
+  color: #182127;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.active-passkey-row span {
+  color: #68787f;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.passkey-create-form {
+  display: grid;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.passkey-create-form label {
+  margin-bottom: 0;
+}
+
+.passkey-summary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.passkey-summary-text {
+  display: grid;
+  min-width: 0;
+}
+
+.passkey-summary-text strong,
+.passkey-summary-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passkey-table-summary {
+  min-width: 0;
+}
+
+.passkey-device-mark {
+  display: inline-grid;
+  position: relative;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dce8e6;
+  border-radius: 8px;
+  color: #223238;
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(25, 42, 47, 0.06);
+  line-height: 0;
+  overflow: hidden;
+}
+
+.passkey-device-mark svg {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+}
+
+.passkey-device-macos,
+.passkey-device-ios,
+.passkey-device-ipados {
+  color: #172026;
+}
+
+.passkey-device-macos svg,
+.passkey-device-ios svg,
+.passkey-device-ipados svg {
+  transform: translate(-50%, calc(-50% + 0.5px));
+}
+
+.passkey-device-windows {
+  color: #0b70c9;
+  background: #edf6ff;
+  border-color: #c8e5ff;
+}
+
+.passkey-device-windows svg {
+  transform: translate(-50%, -50%);
+}
+
+.passkey-device-android {
+  color: #23884d;
+  background: #effaf3;
+  border-color: #cdeed9;
+}
+
+.passkey-device-android svg {
+  transform: translate(-50%, calc(-50% - 0.75px));
+}
+
+.passkey-device-security-key {
+  color: #6b35b5;
+  background: #f5f0ff;
+  border-color: #dfd0ff;
+}
+
+.passkey-device-security-key svg {
+  transform: translate(calc(-50% + 0.5px), calc(-50% - 0.25px));
+}
+
+.passkey-device-cross-device,
+.passkey-device-platform,
+.passkey-device-passkey,
+.passkey-device-linux {
+  color: #31545c;
+  background: #f5fbfa;
+}
+
+.passkey-device-cross-device svg,
+.passkey-device-linux svg {
+  transform: translate(-50%, -50%);
+}
+
+.passkey-device-platform svg,
+.passkey-device-passkey svg {
+  transform: translate(-50%, calc(-50% - 0.5px));
+}

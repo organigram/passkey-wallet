@@ -1,0 +1,222 @@
+@media (max-width: 860px) {
+  .app-shell {
+    width: min(100% - 24px, 1180px);
+    padding: 6px 0;
+  }
+
+  .hero-glass-card,
+  .workflow-grid,
+  .remote-backup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    position: sticky;
+    isolation: isolate;
+    z-index: 30;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 48px;
+    padding: 6px 8px;
+  }
+
+  .topbar::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+    pointer-events: none;
+  }
+
+  .topbar-actions {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+  }
+
+  .brand > div {
+    display: none;
+  }
+
+  .topbar-actions > .primary-button,
+  .topbar-actions > .ghost-button {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .github-link {
+    flex: 0 0 32px;
+  }
+
+  .account-menu-wrap {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .account-menu-button {
+    max-width: min(220px, calc(100vw - 104px));
+  }
+
+  .account-menu {
+    position: fixed;
+    z-index: 31;
+    top: 58px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - 74px);
+    overflow: auto;
+  }
+
+  .locked-wallet-center {
+    padding-top: 0;
+  }
+
+  .hero-band {
+    margin-top: 14px;
+  }
+
+  .hero-glass-card {
+    padding: 22px;
+  }
+
+  .hero-band h1 {
+    font-size: 42px;
+  }
+
+  .primary-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .wallet-funds-panel,
+  .main-panel-stack,
+  .side-panel-stack {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-heading,
+  .settings-card-heading {
+    display: grid;
+  }
+
+  .tracked-asset-row {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .tracked-asset-group-trigger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tracked-asset-group-trigger em,
+  .asset-accordion-indicator {
+    justify-self: start;
+  }
+
+  .tracked-asset-row em,
+  .tracked-asset-row .text-button {
+    justify-self: start;
+    grid-column: 2;
+  }
+
+  .asset-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-network-row {
+    display: grid;
+  }
+
+  .custom-network-form {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-network-form input:first-child,
+  .custom-network-form input:nth-child(3),
+  .custom-network-form .ghost-button {
+    grid-column: auto;
+  }
+
+  .wallet-group-heading {
+    display: grid;
+  }
+
+  .vault-unlock-row,
+  .vault-account-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-group-actions,
+  .active-passkey-row {
+    display: grid;
+  }
+
+  .vault-account-actions {
+    justify-content: flex-start;
+  }
+
+  .passkey-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 13px;
+  }
+
+  .passkey-row-head {
+    display: none;
+  }
+
+  .seed-phrase-heading {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .seed-phrase-actions {
+    justify-content: flex-start;
+  }
+
+  .seed-word-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .remote-backup-actions {
+    display: grid;
+  }
+
+  .request-box .request-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .request-account-option {
+    grid-template-columns: 1fr;
+  }
+
+  .request-account-summary {
+    grid-template-columns: 1fr;
+  }
+}

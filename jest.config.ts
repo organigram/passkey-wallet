@@ -6,9 +6,7 @@ const config: Config = {
   watchman: false,
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@organigram/js$': '<rootDir>/__mocks__/organigram-js.ts',
-    '^wagmi$': '<rootDir>/__mocks__/wagmi.ts'
+    '^(\\.{1,2}/.*)\\.js$': '$1'
   },
   transform: {
     '^.+\\.tsx?$': [

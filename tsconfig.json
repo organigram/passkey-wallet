@@ -16,8 +16,7 @@
     "types": ["node", "jest"]
   },
   "include": [
-    "src/**/*.ts",
-    "__mocks__/**/*.ts",
+    "lib/**/*.ts",
     "jest.config.ts"
   ],
   "exclude": [

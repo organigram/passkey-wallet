@@ -11,32 +11,84 @@
   "publishConfig": {
     "access": "public"
   },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE.md",
+    "README.md"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
     "./crypto": "./dist/crypto.js",
+    "./encryption": "./dist/encryption.js",
     "./vault": "./dist/vault.js",
-    "./webauthn-client": "./dist/webauthn-client.js",
-    "./webauthn-server": "./dist/webauthn-server.js",
     "./wallet": "./dist/wallet.js",
-    "./eip1193": "./dist/eip1193.js",
-    "./rainbowkit": "./dist/rainbowkit.js",
-    "./errors": "./dist/errors.js"
+    "./local-vault": {
+      "types": "./dist/localVault.d.ts",
+      "import": "./dist/localVault.js",
+      "default": "./dist/localVault.js"
+    },
+    "./vault-registry": {
+      "types": "./dist/vaultRegistry.d.ts",
+      "import": "./dist/vaultRegistry.js",
+      "default": "./dist/vaultRegistry.js"
+    },
+    "./browser-wallet": {
+      "types": "./dist/browserWallet.d.ts",
+      "import": "./dist/browserWallet.js",
+      "default": "./dist/browserWallet.js"
+    },
+    "./backup": {
+      "types": "./dist/backup.d.ts",
+      "import": "./dist/backup.js",
+      "default": "./dist/backup.js"
+    },
+    "./rp-id": {
+      "types": "./dist/rpId.d.ts",
+      "import": "./dist/rpId.js",
+      "default": "./dist/rpId.js"
+    },
+    "./remote-protocol": {
+      "types": "./dist/remoteProtocol.d.ts",
+      "import": "./dist/remoteProtocol.js",
+      "default": "./dist/remoteProtocol.js"
+    },
+    "./remote-rainbowkit": {
+      "types": "./dist/remoteRainbowkit.d.ts",
+      "import": "./dist/remoteRainbowkit.js",
+      "default": "./dist/remoteRainbowkit.js"
+    },
+    "./errors": "./dist/errors.js",
+    "./sign-in-protocol": {
+      "types": "./dist/signInProtocol.d.ts",
+      "import": "./dist/signInProtocol.js",
+      "default": "./dist/signInProtocol.js"
+    },
+    "./sign-in-client": {
+      "types": "./dist/signInClient.d.ts",
+      "import": "./dist/signInClient.js",
+      "default": "./dist/signInClient.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    },
+    "./next-auth": {
+      "types": "./dist/nextAuth.d.ts",
+      "import": "./dist/nextAuth.js",
+      "default": "./dist/nextAuth.js"
+    }
   },
   "type": "module",
   "peerDependencies": {
-    "@organigram/js": "workspace:^",
     "@rainbow-me/rainbowkit": "^2.2.8",
-    "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.2",
     "viem": "^2.18.2",
     "wagmi": "^2.16.3 || ^3.0.0"
   },
   "dependencies": {
-    "@organigram/js": "workspace:^",
-    "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.2",
     "viem": "2.55.2"
   },
   "devDependencies": {
@@ -44,16 +96,36 @@
     "@tsconfig/recommended": "^1.0.7",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.19.37",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "^5.1.2",
     "jest": "^29.7.0",
+    "qrcode.react": "^3.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "ts-jest": "^29.2.3",
     "typescript": "^5.5.4",
+    "vite": "^7.3.5",
     "wagmi": "^2.16.3"
   },
   "scripts": {
     "docs:generate": "env-cmd --silent tsx ../docs/scripts/generatePackageTypeScriptReference.ts . passkey-wallet",
-    "build": "tsc -p tsconfig.build.json --pretty",
+    "build:lib": "tsc -p tsconfig.build.json --pretty",
+    "build:app": "pnpm run app:icons && vite build",
+    "build:artifact": "node scripts/package-artifact.mjs",
+    "build": "pnpm build:lib && pnpm build:app && pnpm build:artifact",
+    "app:icons": "node scripts/generate-rainbowkit-network-icons.mjs",
+    "app:cert": "node scripts/generate-certs.mjs",
+    "predev": "pnpm run build:lib",
+    "dev": "node scripts/dev-https.mjs localhost",
+    "predev:proxy-target": "pnpm run build:lib",
+    "dev:proxy-target": "vite --force --host 127.0.0.1 --port 3003",
+    "app:preview": "vite preview --host 127.0.0.1 --port 3003",
+    "app:verify": "node scripts/verify-runtime-dist.mjs",
     "test": "jest",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck:app": "tsc -p tsconfig.app.json --noEmit --incremental false",
+    "typecheck:lib": "tsc -p tsconfig.build.json --noEmit --incremental false",
+    "typecheck": "pnpm typecheck:lib && pnpm typecheck:app",
     "lint": "eslint ."
   }
 }

@@ -1,0 +1,92 @@
+.panel,
+.registry-section,
+.settings-card,
+.result-panel {
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(29, 47, 50, 0.05);
+}
+
+.panel {
+  padding: 20px;
+}
+
+.settings-section {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.settings-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.settings-heading h2,
+.settings-card-heading h2 {
+  margin: 0;
+  color: #17262b;
+  line-height: 26px;
+}
+
+.settings-heading h2 {
+  font-size: 28px;
+}
+
+.settings-card-heading h2 {
+  font-size: 20px;
+}
+
+.settings-heading p,
+.settings-card-heading p {
+  margin: 4px 0 0;
+  color: #68787f;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-main-column,
+.settings-side-column {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-main-column .registry-section {
+  margin-top: 0;
+  box-shadow: none;
+}
+
+.settings-anchor {
+  display: grid;
+  scroll-margin-top: 26px;
+}
+
+.settings-anchor-alias {
+  display: block;
+  height: 0;
+  scroll-margin-top: 26px;
+}
+
+.settings-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  box-shadow: 0 10px 24px rgba(29, 47, 50, 0.05);
+}
+
+.settings-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}

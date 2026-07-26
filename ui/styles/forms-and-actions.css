@@ -1,0 +1,192 @@
+.panel-heading,
+.registry-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.registry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 200px;
+}
+
+.panel h2,
+.registry-section h2,
+.result-panel h2 {
+  margin: 0;
+  color: #182127;
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.panel p,
+.registry-heading p {
+  margin: 5px 0 0;
+  color: #68787f;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: #3a494f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #d6e0df;
+  border-radius: 7px;
+  padding: 11px 12px;
+  color: #182127;
+  background: #fbfcfc;
+  font-size: 14px;
+  line-height: 20px;
+  outline: none;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #00a995;
+  box-shadow: 0 0 0 3px rgba(0, 194, 168, 0.16);
+}
+
+select {
+  appearance: none;
+}
+
+.primary-button,
+.ghost-button,
+.danger-button,
+.text-button {
+  min-height: 40px;
+  border-radius: 7px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.primary-button {
+  color: #fff;
+  background: #162126;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #24343a;
+}
+
+.locked-unlock-button {
+  width: 100%;
+}
+
+.account-setup-actions {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.account-setup-actions .primary-button,
+.account-setup-actions .ghost-button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.account-setup-panel {
+  width: min(480px, 100%);
+}
+
+.vault-unlock-panel {
+  display: grid;
+  width: min(520px, 100%);
+  gap: 10px;
+}
+
+.vault-unlock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(214, 224, 223, 0.86);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.vault-unlock-row-active {
+  border-color: rgba(0, 194, 168, 0.34);
+  background: rgba(242, 251, 249, 0.82);
+}
+
+.vault-unlock-row strong,
+.vault-unlock-row span,
+.vault-unlock-row small {
+  display: block;
+}
+
+.vault-unlock-row strong {
+  color: #182127;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.vault-unlock-row span,
+.vault-unlock-row small {
+  color: #526269;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.account-setup-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.ghost-button {
+  border: 1px solid #cbd7d6;
+  color: #213037;
+  background: #fff;
+}
+
+.ghost-button:hover:not(:disabled) {
+  border-color: #9fb0ae;
+
+  background: #f7faf9;
+}
+
+.danger-button {
+  border: 1px solid #e4b5b5;
+  color: #8a2424;
+  background: #fff7f7;
+}
+
+.danger-button:hover:not(:disabled) {
+  border-color: #d68181;
+  background: #fff1f1;
+}
+
+.text-button {
+  min-height: 32px;
+  padding: 0;
+  color: #0b766b;
+  background: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
