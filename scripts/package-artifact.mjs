@@ -246,8 +246,8 @@ const main = async () => {
     )}\n`
   )
 
-  console.log(`Created ${archivePath}`)
-  console.log(`SHA-256 ${archiveSha256}`)
+  console.info(`Created ${archivePath}`)
+  console.info(`SHA-256 ${archiveSha256}`)
 }
 
 main().catch(error => {

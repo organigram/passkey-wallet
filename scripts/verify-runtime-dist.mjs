@@ -130,8 +130,8 @@ const main = async () => {
     return
   }
 
-  console.log(`Verified ${expectedFiles.size} release file(s).`)
-  console.log(
+  console.info(`Verified ${expectedFiles.size} release file(s).`)
+  console.info(
     `Ignored ${customizablePaths.size} customizable runtime path(s): ${[
       ...customizablePaths
     ].join(', ')}`

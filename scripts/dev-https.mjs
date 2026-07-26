@@ -125,11 +125,11 @@ viteProcess.on('exit', code => {
 })
 
 server.listen(config.sourcePort, config.listenHost, () => {
-  console.log('')
-  console.log(`Organigram Passkey Wallet UI ready at ${config.origin}`)
-  console.log(`HTTPS proxy listen host: ${config.listenHost}`)
-  console.log(`Vite target: http://127.0.0.1:${config.targetPort}`)
-  console.log('')
+  console.info('')
+  console.info(`Organigram Passkey Wallet UI ready at ${config.origin}`)
+  console.info(`HTTPS proxy listen host: ${config.listenHost}`)
+  console.info(`Vite target: http://127.0.0.1:${config.targetPort}`)
+  console.info('')
 })
 
 const stop = () => {
