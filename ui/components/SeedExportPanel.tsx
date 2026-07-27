@@ -15,7 +15,7 @@ export const SeedExportPanel = (): JSX.Element | null => {
       <div className='panel-heading'>
         <div>
           <h2>Seed phrase</h2>
-          <p>Export the active account seed phrase for disaster recovery.</p>
+          <p>Reveal the active account seed phrase.</p>
         </div>
       </div>
       <button

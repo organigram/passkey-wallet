@@ -1,6 +1,17 @@
 import { useWalletApp } from './Context'
 import { openOrganigramSignIn } from '../helpers/wallet'
 
+const backupAccessWarningMessage = [
+  'Encrypted backup access warning',
+  '',
+  'This backup alone does not guarantee access to your funds. You need at least one active passkey to unlock the vault.',
+  '',
+  'If every passkey is lost, the only recovery path is a seed phrase that you already exported.'
+].join('\n')
+
+const confirmBackupAccessWarning = (): boolean =>
+  window.confirm(backupAccessWarningMessage)
+
 export const RemoteBackupPanel = (): JSX.Element => {
   const {
     activeAccount,
@@ -34,6 +45,8 @@ export const RemoteBackupPanel = (): JSX.Element => {
             type='button'
             className='primary-button'
             onClick={() => {
+              if (!confirmBackupAccessWarning()) return
+
               if (requiresOrganigramSignIn) {
                 openOrganigramSignIn()
                 return
@@ -56,7 +69,10 @@ export const RemoteBackupPanel = (): JSX.Element => {
         <button
           type='button'
           className='ghost-button'
-          onClick={exportEncryptedBackup}
+          onClick={() => {
+            if (!confirmBackupAccessWarning()) return
+            exportEncryptedBackup()
+          }}
           disabled={isBusy || activeAccount == null}
         >
           Download backup
