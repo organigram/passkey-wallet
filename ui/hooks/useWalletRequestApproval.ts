@@ -17,6 +17,7 @@ import {
   type PasskeyWalletSignInResult
 } from '@organigram/passkey-wallet/sign-in-protocol'
 import type { Chain } from 'viem'
+import { parseSiweMessage } from 'viem/siwe'
 
 import {
   fetchWalletChallenge,
@@ -234,6 +235,9 @@ export const useWalletRequestApproval = ({
       wallet: unlockedWallet,
       message: challenge.message
     })
+    const signedChainId = parseSiweMessage(challenge.message).chainId
+    const connectionChainId =
+      typeof signedChainId === 'number' ? signedChainId : walletChain.id
     const result: PasskeyWalletSignInResult = {
       type: 'organigram:wallet:sign-in-result',
       version: 1,
@@ -252,7 +256,7 @@ export const useWalletRequestApproval = ({
         domain: signInRequest.domain,
         appOrigin: new URL(signInRequest.challengeUrl).origin,
         address: unlockedWallet.address,
-        chainId: walletChain.id,
+        chainId: connectionChainId,
         requestedAt: signInRequest.requestedAt,
         completedAt: result.completedAt
       })

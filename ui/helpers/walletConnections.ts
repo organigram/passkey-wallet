@@ -63,7 +63,7 @@ export type RecordWalletPendingConnectionInput = {
 }
 
 export const walletPendingConnectionRequestTtlMs = 5 * 60 * 1000
-export const walletSignInSessionSyncGraceMs = 5_000
+export const walletConnectionSessionSyncGraceMs = 60_000
 export const walletConnectionsStorageKey =
   'organigram.passkeyWallet.connections.v1'
 export const walletPendingConnectionsStorageKey =
@@ -523,9 +523,9 @@ export const syncWalletConnectionRecordsForAppSessions = async ({
 
     const completedAtTime = Date.parse(record.completedAt)
     if (
-      record.kind === 'sign-in' &&
+      isActiveWalletConnectionKind(record.kind) &&
       Number.isFinite(completedAtTime) &&
-      now - completedAtTime < walletSignInSessionSyncGraceMs
+      now - completedAtTime < walletConnectionSessionSyncGraceMs
     ) {
       continue
     }

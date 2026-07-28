@@ -3,7 +3,7 @@
   "brandName": "Organigram Passkey Wallet",
   "tagline": "Lightweight Ethereum wallet powered by WebAuthn passkeys",
   "stackOrigin": "",
-  "defaultChainId": 11155111,
+  "defaultChainId": 1,
   "defaultRpcUrl": "",
   "rpcUrlTemplate": "",
   "rpcUrls": {},
