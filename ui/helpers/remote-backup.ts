@@ -1,4 +1,5 @@
 import type { RemoteVaultBackupRecord } from '@organigram/passkey-wallet/backup'
+import { notifyPasskeyWalletStackSessionChanged } from '@organigram/passkey-wallet/sign-in-client'
 import { getWalletRuntimeConfig } from './runtimeConfig'
 
 export {
@@ -151,7 +152,8 @@ export const revokePasskeyWalletSession = async ({
   address: `0x${string}`
   origin?: string
 }): Promise<PasskeyWalletSessionResponse> => {
-  const response = await fetch(new URL('/api/wallet/session', origin), {
+  const appOrigin = new URL(origin).origin
+  const response = await fetch(new URL('/api/wallet/session', appOrigin), {
     method: 'POST',
     cache: 'no-store',
     credentials: 'include',
@@ -161,5 +163,13 @@ export const revokePasskeyWalletSession = async ({
     body: JSON.stringify({ address })
   })
 
-  return readJsonResponse<PasskeyWalletSessionResponse>(response)
+  const session = await readJsonResponse<PasskeyWalletSessionResponse>(response)
+  notifyPasskeyWalletStackSessionChanged({
+    event: 'revoked',
+    appOrigin,
+    address,
+    targetOrigin: appOrigin
+  })
+
+  return session
 }

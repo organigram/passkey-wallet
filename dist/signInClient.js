@@ -1,4 +1,5 @@
 import { passkeyWalletSignInResultType, passkeyWalletSignInType } from './signInProtocol';
+export const passkeyWalletStackSessionChangedType = 'organigram:wallet:stack-session-changed';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
     ? process.env.NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL?.trim() || undefined
@@ -9,6 +10,80 @@ const createRequestId = () => {
         return crypto.randomUUID();
     }
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+};
+const normalizeOrigin = (value) => {
+    if (typeof value !== 'string' || value.trim() === '')
+        return null;
+    try {
+        return new URL(value).origin;
+    }
+    catch {
+        return null;
+    }
+};
+const parseOptionalAddress = (value) => {
+    if (value == null)
+        return null;
+    if (typeof value !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(value)) {
+        return null;
+    }
+    return value;
+};
+export const parsePasskeyWalletStackSessionChangedMessage = (value) => {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+    }
+    const message = value;
+    if (message.type !== passkeyWalletStackSessionChangedType ||
+        message.version !== 1 ||
+        message.event !== 'revoked') {
+        return null;
+    }
+    const appOrigin = normalizeOrigin(message.appOrigin);
+    if (appOrigin == null)
+        return null;
+    const address = parseOptionalAddress(message.address);
+    if (message.address != null && address == null)
+        return null;
+    return {
+        type: passkeyWalletStackSessionChangedType,
+        version: 1,
+        event: 'revoked',
+        appOrigin,
+        address
+    };
+};
+export const createPasskeyWalletStackSessionChangedMessage = ({ event, appOrigin, address }) => {
+    const message = parsePasskeyWalletStackSessionChangedMessage({
+        type: passkeyWalletStackSessionChangedType,
+        version: 1,
+        event,
+        appOrigin,
+        address: address ?? null
+    });
+    if (message == null) {
+        throw new Error('Invalid Organigram stack session change message.');
+    }
+    return message;
+};
+export const notifyPasskeyWalletStackSessionChanged = ({ event, appOrigin, address, targetOrigin = appOrigin }) => {
+    if (typeof window === 'undefined')
+        return;
+    const normalizedTargetOrigin = normalizeOrigin(targetOrigin);
+    if (normalizedTargetOrigin == null)
+        return;
+    const message = createPasskeyWalletStackSessionChangedMessage({
+        event,
+        appOrigin,
+        address
+    });
+    const targets = [
+        window.opener,
+        window.parent !== window ? window.parent : null
+    ].filter((target) => target != null);
+    for (const target of targets) {
+        target.postMessage(message, normalizedTargetOrigin);
+    }
 };
 export const buildPasskeyWalletSignInPopupUrl = ({ walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin, appOrigin = window.location.origin, nonce, chainId, requestId = createRequestId(), requestedAt = new Date().toISOString() }) => {
     const normalizedAppOrigin = new URL(appOrigin).origin;
