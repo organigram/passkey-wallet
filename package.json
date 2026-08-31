@@ -92,6 +92,7 @@
     "viem": "2.55.2"
   },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
     "@rainbow-me/rainbowkit": "^2.2.8",
     "@tsconfig/recommended": "^1.0.7",
     "@types/jest": "^29.5.12",

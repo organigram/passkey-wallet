@@ -1,3 +1,4 @@
+import type { PasskeyWalletTypedData } from './remoteProtocol';
 import { type WalletEncryptionKeyPairPayload } from './encryption';
 import type { StoredVaultAccount, StoredVaultRecord } from './localVault';
 import type { UnlockedPasskeyWallet } from './types';
@@ -61,5 +62,9 @@ export declare const getDiscoverablePasskeyPrfOutput: ({ rpId }?: {
 export declare const signPersonalMessage: ({ wallet, message }: {
     wallet: UnlockedPasskeyWallet;
     message: string;
+}) => Promise<`0x${string}`>;
+export declare const signTypedDataMessage: ({ wallet, typedData }: {
+    wallet: UnlockedPasskeyWallet;
+    typedData: PasskeyWalletTypedData;
 }) => Promise<`0x${string}`>;
 export declare const hexEncodeMessage: (message: string) => `0x${string}`;

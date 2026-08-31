@@ -61,10 +61,12 @@ type AddressPortfolioState = {
 
 export const useWalletPortfolio = ({
   activeAccountAddress,
-  setError
+  setError,
+  enabled = true
 }: {
   activeAccountAddress: `0x${string}` | null
   setError: (error: string | null) => void
+  enabled?: boolean
 }) => {
   const [trackedWalletAssets, setTrackedWalletAssets] = useState<
     TrackedWalletAsset[]
@@ -465,6 +467,7 @@ export const useWalletPortfolio = ({
   }, [portfolioStateAddressKey, selectedWalletNetworkKeys])
 
   useEffect(() => {
+    if (!enabled) return
     const priceIds = includedTrackedAssets
       .map(asset => asset.coingeckoId.trim())
       .filter(Boolean)
@@ -505,9 +508,13 @@ export const useWalletPortfolio = ({
     return () => {
       cancelled = true
     }
-  }, [balanceRefreshKey, includedTrackedAssets, portfolioCurrency])
+  }, [balanceRefreshKey, enabled, includedTrackedAssets, portfolioCurrency])
 
   useEffect(() => {
+    if (!enabled) {
+      setIsBalanceLoading(false)
+      return
+    }
     const activeAddressKey = getAddressKey(activeAccountAddress)
     if (
       activeAccountAddress == null ||
@@ -622,10 +629,15 @@ export const useWalletPortfolio = ({
     availableWalletNetworkOptions,
     balanceRefreshKey,
     includedTrackedAssets,
-    portfolioStateAddressKey
+    portfolioStateAddressKey,
+    enabled
   ])
 
   useEffect(() => {
+    if (!enabled) {
+      setIsPortfolioHistoryLoading(false)
+      return
+    }
     const assetsWithBalances = includedTrackedAssets.filter(
       asset =>
         asset.coingeckoId.trim() !== '' &&
@@ -695,7 +707,7 @@ export const useWalletPortfolio = ({
     return () => {
       cancelled = true
     }
-  }, [assetBalances, includedTrackedAssets, portfolioPeriod, usdConversionRate])
+  }, [assetBalances, enabled, includedTrackedAssets, portfolioPeriod, usdConversionRate])
 
   return {
     trackedWalletAssets,

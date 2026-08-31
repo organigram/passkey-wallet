@@ -64,7 +64,9 @@ const getCredentialTransports = (credential) => {
 };
 const getCurrentPasskeyDevice = (transports) => {
     const transportSet = new Set(transports);
-    if (transportSet.has('usb') || transportSet.has('nfc') || transportSet.has('ble')) {
+    if (transportSet.has('usb') ||
+        transportSet.has('nfc') ||
+        transportSet.has('ble')) {
         return {
             kind: 'security-key',
             label: 'Security key'
@@ -405,6 +407,7 @@ export const getDiscoverablePasskeyPrfOutput = async ({ rpId = inferPasskeyRpId(
 export const signPersonalMessage = async ({ wallet, message }) => await wallet.account.signMessage({
     message
 });
+export const signTypedDataMessage = async ({ wallet, typedData }) => await wallet.account.signTypedData(typedData);
 export const hexEncodeMessage = (message) => `0x${Array.from(textEncoder.encode(message))
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('')}`;

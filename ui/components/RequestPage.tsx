@@ -8,6 +8,16 @@ import { useWalletSetupPanels } from './SetupPanels'
 export const WalletRequestPage = (): JSX.Element => {
   const runtimeConfig = getWalletRuntimeConfig()
   const { combinedVaults, error, pendingRequest, status } = useWalletApp()
+  const approvalSequence =
+    pendingRequest?.kind === 'remote' &&
+    pendingRequest.request.approvalStep != null &&
+    pendingRequest.request.approvalCount != null
+      ? `${pendingRequest.request.approvalStep} of ${pendingRequest.request.approvalCount}${
+          pendingRequest.request.approvalLabel == null
+            ? ''
+            : ` · ${pendingRequest.request.approvalLabel}`
+        }`
+      : null
   const { accountSetupPanel } = useWalletSetupPanels()
   const shouldShowRequestSetup =
     pendingRequest != null && combinedVaults.length === 0
@@ -25,6 +35,9 @@ export const WalletRequestPage = (): JSX.Element => {
           <div className='status-panel request-status'>
             <span>Status</span>
             <strong>{status}</strong>
+            {approvalSequence != null ? (
+              <small>Approval sequence: {approvalSequence}</small>
+            ) : null}
             <small>RP ID: {inferPasskeyRpId() || 'not available'}</small>
           </div>
 
