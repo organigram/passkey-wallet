@@ -1,4 +1,5 @@
 import { getAddress } from 'viem'
+import type { PasskeyWalletTypedData } from './remoteProtocol'
 import { english, generateMnemonic, mnemonicToAccount } from 'viem/accounts'
 
 import {
@@ -139,7 +140,11 @@ const getCurrentPasskeyDevice = (
   transports: string[]
 ): StoredVaultRecord['passkeyDevice'] => {
   const transportSet = new Set(transports)
-  if (transportSet.has('usb') || transportSet.has('nfc') || transportSet.has('ble')) {
+  if (
+    transportSet.has('usb') ||
+    transportSet.has('nfc') ||
+    transportSet.has('ble')
+  ) {
     return {
       kind: 'security-key',
       label: 'Security key'
@@ -297,9 +302,8 @@ const createPasskeyVaultRecord = async ({
   }
 }
 
-export const inferPasskeyRpId = (
-  hostname = window.location.hostname
-): string => inferRpIdFromHostname(hostname)
+export const inferPasskeyRpId = (hostname = window.location.hostname): string =>
+  inferRpIdFromHostname(hostname)
 
 export const createGeneratedRecoveryPhrase = (): string =>
   generateMnemonic(english, 128)
@@ -395,8 +399,9 @@ export const registerBrowserPasskeyVault = async ({
     addressIndex: 0,
     name: name.trim() || 'Account 1'
   })
-  const vaultPayload =
-    await createBrowserPasskeyWalletVaultPayload(normalizedRecoveryPhrase)
+  const vaultPayload = await createBrowserPasskeyWalletVaultPayload(
+    normalizedRecoveryPhrase
+  )
   const record = await createPasskeyVaultRecord({
     accounts: [account],
     name: name.trim() || 'Organigram Passkey Wallet',
@@ -528,7 +533,9 @@ export const unlockBrowserPasskeyVault = async ({
         wallet.account.address.toLowerCase() !==
         record.accounts[0].address.toLowerCase()
       ) {
-        throw new Error('Encrypted vault does not match the registered address.')
+        throw new Error(
+          'Encrypted vault does not match the registered address.'
+        )
       }
 
       return {
@@ -628,6 +635,17 @@ export const signPersonalMessage = async ({
   await wallet.account.signMessage({
     message
   })
+
+export const signTypedDataMessage = async ({
+  wallet,
+  typedData
+}: {
+  wallet: UnlockedPasskeyWallet
+  typedData: PasskeyWalletTypedData
+}): Promise<`0x${string}`> =>
+  await wallet.account.signTypedData(
+    typedData as Parameters<typeof wallet.account.signTypedData>[0]
+  )
 
 export const hexEncodeMessage = (message: string): `0x${string}` =>
   `0x${Array.from(textEncoder.encode(message))

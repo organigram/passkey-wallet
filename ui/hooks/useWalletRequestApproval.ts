@@ -2,15 +2,25 @@ import type { UnlockedPasskeyWallet } from '@organigram/passkey-wallet'
 import {
   derivePasskeyWalletAccount as deriveStaticPasskeyWalletAccount,
   signPersonalMessage,
+  signTypedDataMessage,
   unlockBrowserPasskeyVault
 } from '@organigram/passkey-wallet/browser-wallet'
 import {
   passkeyWalletConnectResultType,
   passkeyWalletConnectType,
   passkeyWalletSignMessageResultType,
+  passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataResultType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionResultType,
+  passkeyWalletSendTransactionType,
+  passkeyWalletRemoteErrorResultType,
   type PasskeyWalletConnectResult,
   type PasskeyWalletRemoteRequest,
-  type PasskeyWalletSignMessageResult
+  type PasskeyWalletSignMessageResult,
+  type PasskeyWalletSignTypedDataResult,
+  type PasskeyWalletSendTransactionResult,
+  type PasskeyWalletRemoteErrorResult
 } from '@organigram/passkey-wallet/remote-protocol'
 import {
   type PasskeyWalletSignInRequest,
@@ -36,18 +46,25 @@ import {
 } from '../helpers/storage'
 import {
   assertWalletRequestNotExpired,
-  getActiveWalletConnectionRecord,
+  ensureActiveWalletConnectionRecord,
+  loadWalletConnectionRecords,
   recordWalletConnectionRequest,
   removeWalletPendingConnectionRequest,
   type WalletConnectionRecord,
   type WalletPendingConnectionRequest
 } from '../helpers/walletConnections'
+import { sendRemoteWalletTransaction } from '../helpers/walletLocalActions'
 
 type RequestResult =
   | PasskeyWalletSignInResult
   | PasskeyWalletSignMessageResult
+  | PasskeyWalletSignTypedDataResult
+  | PasskeyWalletSendTransactionResult
 
-type WalletApprovalResult = RequestResult | PasskeyWalletConnectResult
+type WalletApprovalResult =
+  | RequestResult
+  | PasskeyWalletConnectResult
+  | PasskeyWalletRemoteErrorResult
 
 type DeliverWalletResult = (
   result: WalletApprovalResult,
@@ -140,6 +157,23 @@ export const useWalletRequestApproval = ({
     postWalletResult(result, targetOrigin)
   }
 
+  const deliverRemoteError = (
+    request: PasskeyWalletRemoteRequest,
+    error: unknown,
+    deliverResult: DeliverWalletResult
+  ): void => {
+    const result: PasskeyWalletRemoteErrorResult = {
+      type: passkeyWalletRemoteErrorResultType,
+      version: 1,
+      requestId: request.requestId,
+      domain: request.domain,
+      chainId: request.chainId,
+      error: error instanceof Error ? error.message : String(error),
+      completedAt: new Date().toISOString()
+    }
+    deliverResult(result, request.appOrigin)
+  }
+
   const approveRemoteRequest = async (
     request: PasskeyWalletRemoteRequest,
     deliverResult: DeliverWalletResult = deliverWalletResult
@@ -182,43 +216,82 @@ export const useWalletRequestApproval = ({
     }
 
     const unlockedWallet = await unlockWalletForRequest(request.address)
-    const activeConnection = getActiveWalletConnectionRecord({
+    const activeConnection = await ensureActiveWalletConnectionRecord({
       domain: request.domain,
       appOrigin: request.appOrigin,
       address: unlockedWallet.address,
-      chainId: request.chainId
+      chainId: request.chainId,
+      requestId: request.requestId,
+      requestedAt: request.requestedAt
     })
     if (activeConnection == null) {
       throw new Error(
         'This wallet connection is not active. Ask the app to connect this wallet again.'
       )
     }
+    setWalletConnectionRecords(loadWalletConnectionRecords())
 
-    const signature = await signPersonalMessage({
-      wallet: unlockedWallet,
-      message: request.message
-    })
-    const result: PasskeyWalletSignMessageResult = {
-      type: passkeyWalletSignMessageResultType,
-      version: 1,
-      requestId: request.requestId,
-      domain: request.domain,
-      address: unlockedWallet.address,
-      chainId: request.chainId,
-      message: request.message,
-      signature,
-      completedAt: new Date().toISOString()
-    }
+    const result: PasskeyWalletSignMessageResult | PasskeyWalletSignTypedDataResult | PasskeyWalletSendTransactionResult =
+      request.type === passkeyWalletSignMessageType
+        ? {
+            type: passkeyWalletSignMessageResultType,
+            version: 1,
+            requestId: request.requestId,
+            domain: request.domain,
+            address: unlockedWallet.address,
+            chainId: request.chainId,
+            message: request.message,
+            signature: await signPersonalMessage({
+              wallet: unlockedWallet,
+              message: request.message
+            }),
+            completedAt: new Date().toISOString()
+          }
+        : request.type === passkeyWalletSignTypedDataType ? {
+            type: passkeyWalletSignTypedDataResultType,
+            version: 1,
+            requestId: request.requestId,
+            domain: request.domain,
+            address: unlockedWallet.address,
+            chainId: request.chainId,
+            typedData: request.typedData,
+            signature: await signTypedDataMessage({
+              wallet: unlockedWallet,
+              typedData: request.typedData
+            }),
+            completedAt: new Date().toISOString()
+          } : {
+            type: passkeyWalletSendTransactionResultType,
+            version: 1,
+            requestId: request.requestId,
+            domain: request.domain,
+            address: unlockedWallet.address,
+            chainId: request.chainId,
+            transactionHash: await sendRemoteWalletTransaction({
+              wallet: unlockedWallet,
+              transaction: request.transaction,
+              walletChain,
+              chainId: request.chainId,
+              // The Stack API proxies RPC calls so the passkey-wallet origin
+              // never needs CORS access to a chain provider (or local Anvil).
+              walletRpcUrl: new URL(
+                `/api/rpc/${request.chainId}`,
+                request.appOrigin
+              ).toString()
+            }),
+            completedAt: new Date().toISOString()
+          }
     setLastResult(result)
     setWalletPendingConnectionRequests(
       removeWalletPendingConnectionRequest({
-        kind: 'sign-message',
+        kind:
+          request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : 'sign-message',
         requestId: request.requestId
       })
     )
     deliverResult(result, request.appOrigin)
     setPendingRequest(null)
-    setStatus(`Returned signed message to ${request.domain}.`)
+    setStatus(request.type === passkeyWalletSendTransactionType ? `Submitted transaction for ${request.domain}.` : `Returned signed request to ${request.domain}.`)
   }
 
   const approveSignInRequest = async (
@@ -276,13 +349,24 @@ export const useWalletRequestApproval = ({
     if (pendingRequest == null) return
 
     await runAction('Signing requested challenge...', async () => {
-      assertWalletRequestNotExpired(pendingRequest)
-      if (pendingRequest.kind === 'remote') {
-        await approveRemoteRequest(pendingRequest.request)
-        return
-      }
+      try {
+        assertWalletRequestNotExpired(pendingRequest)
+        if (pendingRequest.kind === 'remote') {
+          await approveRemoteRequest(pendingRequest.request)
+          return
+        }
 
-      await approveSignInRequest(pendingRequest.request)
+        await approveSignInRequest(pendingRequest.request)
+      } catch (error) {
+        if (pendingRequest.kind === 'remote') {
+          deliverRemoteError(
+            pendingRequest.request,
+            error,
+            deliverWalletResult
+          )
+        }
+        throw error
+      }
     })
   }
 
@@ -291,13 +375,20 @@ export const useWalletRequestApproval = ({
     deliverResult: DeliverWalletResult = deliverWalletResult
   ): Promise<void> => {
     await runAction('Signing requested challenge...', async () => {
-      assertWalletRequestNotExpired(request)
-      if (request.kind === 'remote') {
-        await approveRemoteRequest(request.request, deliverResult)
-        return
-      }
+      try {
+        assertWalletRequestNotExpired(request)
+        if (request.kind === 'remote') {
+          await approveRemoteRequest(request.request, deliverResult)
+          return
+        }
 
-      await approveSignInRequest(request.request, deliverResult)
+        await approveSignInRequest(request.request, deliverResult)
+      } catch (error) {
+        if (request.kind === 'remote') {
+          deliverRemoteError(request.request, error, deliverResult)
+        }
+        throw error
+      }
     })
   }
 

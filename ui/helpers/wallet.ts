@@ -8,7 +8,10 @@ import {
 import type {
   PasskeyWalletConnectResult,
   PasskeyWalletRemoteRequest,
-  PasskeyWalletSignMessageResult
+  PasskeyWalletSignMessageResult,
+  PasskeyWalletSignTypedDataResult,
+  PasskeyWalletSendTransactionResult,
+  PasskeyWalletRemoteErrorResult
 } from '@organigram/passkey-wallet/remote-protocol'
 import { getStackOrigin } from './remote-backup'
 
@@ -211,6 +214,9 @@ export const postWalletResult = (
   result:
     | PasskeyWalletConnectResult
     | PasskeyWalletSignMessageResult
+    | PasskeyWalletSignTypedDataResult
+    | PasskeyWalletSendTransactionResult
+    | PasskeyWalletRemoteErrorResult
     | PasskeyWalletSignInResult,
   targetOrigin: string
 ): void => {

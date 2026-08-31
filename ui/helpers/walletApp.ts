@@ -2,6 +2,8 @@ import {
   passkeyWalletConnectType,
   passkeyWalletDisconnectType,
   passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionType,
   parsePasskeyWalletDisconnectRequest,
   parsePasskeyWalletRemoteRequest,
   type PasskeyWalletDisconnectRequest
@@ -107,7 +109,23 @@ export const parseInitialWalletLocationRequest = ({
     }
   }
 
-  if (type === passkeyWalletConnectType || type === passkeyWalletSignMessageType) {
+  if (
+    type === passkeyWalletConnectType ||
+    type === passkeyWalletSignMessageType ||
+    type === passkeyWalletSignTypedDataType ||
+    type === passkeyWalletSendTransactionType
+  ) {
+    if (
+      (type === passkeyWalletSignMessageType ||
+        type === passkeyWalletSignTypedDataType ||
+        type === passkeyWalletSendTransactionType) &&
+      params.get('messageTransport') === 'post-message'
+    ) {
+      return {
+        kind: 'none'
+      }
+    }
+
     const request = parsePasskeyWalletRemoteRequest(params)
     return {
       kind: 'pending',
@@ -117,7 +135,13 @@ export const parseInitialWalletLocationRequest = ({
       },
       pendingConnectionRequest: {
         kind:
-          request.type === passkeyWalletConnectType ? 'connect' : 'sign-message',
+        request.type === passkeyWalletConnectType
+          ? 'connect'
+        : request.type === passkeyWalletSignTypedDataType
+          ? 'sign-typed-data'
+          : request.type === passkeyWalletSendTransactionType
+            ? 'send-transaction'
+            : 'sign-message',
         requestId: request.requestId,
         domain: request.domain,
         appOrigin: request.appOrigin,

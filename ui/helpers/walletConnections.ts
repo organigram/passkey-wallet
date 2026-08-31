@@ -1,11 +1,16 @@
 import { getAddress } from 'viem'
 
-import { fetchPasskeyWalletSession } from './remote-backup'
+import {
+  fetchPasskeyWalletSession,
+  type PasskeyWalletSessionResponse
+} from './remote-backup'
 
 export type WalletConnectionRequestKind =
   | 'connect'
   | 'sign-in'
   | 'sign-message'
+  | 'sign-typed-data'
+  | 'send-transaction'
 
 export type WalletConnectionRecord = {
   id: string
@@ -95,6 +100,15 @@ const getPendingConnectionId = ({
   requestId: string
 }): string => `${kind}:${requestId}`
 
+const isWalletConnectionRequestKind = (
+  kind: unknown
+): kind is WalletConnectionRequestKind =>
+  kind === 'connect' ||
+  kind === 'sign-in' ||
+    kind === 'sign-message' ||
+    kind === 'sign-typed-data' ||
+    kind === 'send-transaction'
+
 const getPendingConnectionExpiresAt = ({
   expiresAt,
   requestedAt
@@ -145,9 +159,7 @@ const parseWalletConnectionRecord = (
   const record = value as Partial<WalletConnectionRecord>
   if (
     record.version !== 1 ||
-    (record.kind !== 'connect' &&
-      record.kind !== 'sign-in' &&
-      record.kind !== 'sign-message') ||
+    !isWalletConnectionRequestKind(record.kind) ||
     typeof record.requestId !== 'string' ||
     typeof record.domain !== 'string' ||
     (typeof record.appOrigin !== 'string' && record.appOrigin !== null) ||
@@ -195,9 +207,7 @@ const parseWalletPendingConnectionRequest = (
   const request = value as Partial<WalletPendingConnectionRequest>
   if (
     request.version !== 1 ||
-    (request.kind !== 'connect' &&
-      request.kind !== 'sign-in' &&
-      request.kind !== 'sign-message') ||
+    !isWalletConnectionRequestKind(request.kind) ||
     typeof request.requestId !== 'string' ||
     typeof request.domain !== 'string' ||
     (typeof request.appOrigin !== 'string' && request.appOrigin !== null) ||
@@ -506,6 +516,77 @@ export const getActiveWalletConnectionRecord = ({
         record.revokedAt == null
     ) ?? null
   )
+}
+
+type FetchWalletSession = (
+  origin: string
+) => Promise<PasskeyWalletSessionResponse>
+
+export const ensureActiveWalletConnectionRecord = async ({
+  domain,
+  appOrigin,
+  address,
+  chainId,
+  requestId,
+  requestedAt,
+  now = new Date(),
+  fetchSession = fetchPasskeyWalletSession
+}: {
+  domain: string
+  appOrigin: string | null
+  address: `0x${string}`
+  chainId: number
+  requestId: string
+  requestedAt: string
+  now?: Date
+  fetchSession?: FetchWalletSession
+}): Promise<WalletConnectionRecord | null> => {
+  const activeConnection = getActiveWalletConnectionRecord({
+    domain,
+    appOrigin,
+    address,
+    chainId
+  })
+  if (activeConnection != null) {
+    return activeConnection
+  }
+  if (appOrigin == null) {
+    return null
+  }
+
+  try {
+    const session = await fetchSession(appOrigin)
+    const sessionAddress =
+      session.address == null ? null : getAddress(session.address)
+    if (
+      !session.authenticated ||
+      session.authProvider !== 'wallet' ||
+      sessionAddress == null ||
+      sessionAddress.toLowerCase() !== getAddress(address).toLowerCase()
+    ) {
+      return null
+    }
+
+    recordWalletConnectionRequest({
+      kind: 'sign-in',
+      requestId,
+      domain,
+      appOrigin,
+      address: sessionAddress,
+      chainId,
+      requestedAt,
+      completedAt: now.toISOString()
+    })
+
+    return getActiveWalletConnectionRecord({
+      domain,
+      appOrigin,
+      address: sessionAddress,
+      chainId
+    })
+  } catch {
+    return null
+  }
 }
 
 export const syncWalletConnectionRecordsForAppSessions = async ({

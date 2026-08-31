@@ -1,6 +1,8 @@
 import {
   passkeyWalletConnectType,
-  passkeyWalletSignMessageType
+  passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionType
 } from '@organigram/passkey-wallet/remote-protocol'
 import { useState } from 'react'
 import { useWalletApp } from './Context'
@@ -21,7 +23,7 @@ export const WalletRequestPanel = (): JSX.Element | null => {
   } = useWalletApp()
   const pendingRequestRequiredAddress =
     pendingRequest?.kind === 'remote' &&
-    pendingRequest.request.type === passkeyWalletSignMessageType
+    'address' in pendingRequest.request
       ? pendingRequest.request.address
       : null
   const requestAccountSelector =
@@ -132,6 +134,10 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                 <dd>
                   {pendingRequest.request.type === passkeyWalletConnectType
                     ? 'Connect wallet'
+                    : pendingRequest.request.type === passkeyWalletSendTransactionType
+                      ? 'Send transaction'
+                      : pendingRequest.request.type === passkeyWalletSignTypedDataType
+                        ? 'Sign typed data'
                     : 'Sign message'}
                 </dd>
               </div>
@@ -159,6 +165,14 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                   )
                 })()
               : null}
+            {pendingRequest.request.type === passkeyWalletSendTransactionType ? (
+              <div className='request-message-detail'>
+                <dt>Transaction</dt>
+                <dd className='request-message-body'>
+                  <pre>{JSON.stringify(pendingRequest.request.transaction, null, 2)}</pre>
+                </dd>
+              </div>
+            ) : null}
           </dl>
         )}
         {requestAccountSelector}

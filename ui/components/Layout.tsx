@@ -62,16 +62,27 @@ const LatestSignaturePanel = (): JSX.Element | null => {
 
   return lastResult == null ? null : (
     <section className='result-panel'>
-      <h2>Latest signature</h2>
+      <h2>
+        {'transactionHash' in lastResult
+          ? 'Latest transaction'
+          : 'Latest signature'}
+      </h2>
       <dl>
         <div>
           <dt>Address</dt>
           <dd>{lastResult.address}</dd>
         </div>
-        <div>
-          <dt>Signature</dt>
-          <dd>{lastResult.signature}</dd>
-        </div>
+        {'transactionHash' in lastResult ? (
+          <div>
+            <dt>Transaction hash</dt>
+            <dd>{lastResult.transactionHash}</dd>
+          </div>
+        ) : (
+          <div>
+            <dt>Signature</dt>
+            <dd>{lastResult.signature}</dd>
+          </div>
+        )}
       </dl>
     </section>
   )
