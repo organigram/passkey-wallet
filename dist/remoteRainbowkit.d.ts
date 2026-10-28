@@ -52,11 +52,6 @@ export declare const rememberOrganigramRemotePasskeyWalletConnection: ({ address
     chainId: number;
 }) => void;
 export declare const clearOrganigramRemotePasskeyWalletConnection: () => void;
-export declare const notifyOrganigramRemotePasskeyWalletDisconnect: ({ walletOrigin, address, chainId }: {
-    walletOrigin?: string;
-    address: `0x${string}`;
-    chainId: number;
-}) => void;
 export declare const hydrateOrganigramRemoteWalletConnection: <TConnector extends HydrateOrganigramRemoteWalletConnectionConnector>({ address, chainId, connectAsync, connectors, defaultChainId }: HydrateOrganigramRemoteWalletConnectionOptions<TConnector>) => Promise<void>;
 /**
  * Adds presentation-only context to the next wallet approvals. This lets an

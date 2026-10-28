@@ -1,3 +1,4 @@
+import { isPasskeyVaultEnvelope } from './crypto';
 const passkeyDeviceKinds = new Set([
     'macos',
     'ios',
@@ -46,11 +47,11 @@ export const isStoredVaultRecord = (value) => {
         record.credentialId !== '' &&
         typeof record.name === 'string' &&
         Array.isArray(record.transports) &&
+        record.transports.every(transport => typeof transport === 'string') &&
         isPasskeyDevice(record.passkeyDevice) &&
         typeof record.createdAt === 'string' &&
         (record.lastUsedAt == null || typeof record.lastUsedAt === 'string') &&
-        typeof record.envelope === 'object' &&
-        record.envelope != null);
+        isPasskeyVaultEnvelope(record.envelope));
 };
 export const parseVaultRegistry = (value) => {
     if (typeof value !== 'object' || value == null) {

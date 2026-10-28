@@ -1,5 +1,6 @@
 import type { PasskeyWalletTypedData } from './remoteProtocol';
 import { type WalletEncryptionKeyPairPayload } from './encryption';
+import { type PasskeyVaultEnvelopeData } from './crypto';
 import type { StoredVaultAccount, StoredVaultRecord } from './localVault';
 import type { UnlockedPasskeyWallet } from './types';
 export type BrowserPasskeyWalletVaultPayload = {
@@ -9,7 +10,6 @@ export type BrowserPasskeyWalletVaultPayload = {
 };
 export declare const createBrowserPasskeyWalletVaultPayload: (recoveryPhrase: string) => Promise<BrowserPasskeyWalletVaultPayload>;
 export declare const parseBrowserPasskeyWalletVaultPayload: (plaintext: string) => BrowserPasskeyWalletVaultPayload;
-export declare const inferPasskeyRpId: (hostname?: string) => string;
 export declare const createGeneratedRecoveryPhrase: () => string;
 export declare const getDerivationPath: (addressIndex: number) => string;
 export declare const deriveStoredVaultAccount: ({ recoveryPhrase, addressIndex, name }: {
@@ -40,13 +40,34 @@ export declare const registerAdditionalBrowserPasskeyVault: ({ wallet, name, acc
     record: StoredVaultRecord;
     wallet: UnlockedPasskeyWallet;
 }>;
+export type PasskeyPrfCredential = {
+    credentialId: string;
+    transports?: string[];
+    prfSalt: string;
+};
+/**
+ * Runs one user-verified assertion restricted to the given passkeys, each
+ * evaluated with its own PRF salt, and returns the PRF output of the passkey
+ * the person selected. The caller owns the returned PRF output and must zero
+ * it once its key is derived.
+ */
+export declare const requestPasskeyPrfOutput: ({ credentials, rpId }: {
+    credentials: PasskeyPrfCredential[];
+    rpId?: string;
+}) => Promise<{
+    credentialId: string;
+    prfOutput: Uint8Array;
+}>;
+export declare const decryptVaultPayloadWithPrfOutput: ({ envelope, prfOutput }: {
+    envelope: PasskeyVaultEnvelopeData;
+    prfOutput: Uint8Array;
+}) => Promise<BrowserPasskeyWalletVaultPayload>;
 export declare const unlockBrowserPasskeyVault: ({ records, rpId }: {
     records: StoredVaultRecord[];
     rpId?: string;
 }) => Promise<{
     record: StoredVaultRecord;
     wallet: UnlockedPasskeyWallet;
-    prfOutput: Uint8Array;
 }>;
 export declare const updateStaticPasskeyVaultEncryptionKey: ({ records, walletEncryptionKey, rpId }: {
     records: StoredVaultRecord[];
@@ -56,9 +77,6 @@ export declare const updateStaticPasskeyVaultEncryptionKey: ({ records, walletEn
     record: StoredVaultRecord;
     wallet: UnlockedPasskeyWallet;
 }>;
-export declare const getDiscoverablePasskeyPrfOutput: ({ rpId }?: {
-    rpId?: string;
-}) => Promise<Uint8Array>;
 export declare const signPersonalMessage: ({ wallet, message }: {
     wallet: UnlockedPasskeyWallet;
     message: string;

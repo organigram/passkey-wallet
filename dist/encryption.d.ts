@@ -24,6 +24,21 @@ export type WalletEncryptedFilePackage = {
     ciphertext: string;
     encryptedAt: string;
 };
+export type WalletEncryptedPayload = {
+    version: 1;
+    kind: 'organigram:wallet-encrypted-payload';
+    algorithm: 'ECDH-P256+A256GCM';
+    /** Only this application origin may have the payload decrypted. */
+    appOrigin: string;
+    recipient: {
+        address: `0x${string}`;
+        publicKey: JsonWebKey;
+        keyVersion: number;
+    };
+    iv: string;
+    ciphertext: string;
+    encryptedAt: string;
+};
 export type WalletDecryptedFile = {
     name: string;
     type: string;
@@ -52,9 +67,21 @@ export declare const encryptFileWithWalletEncryptionKey: ({ address, file, keyPa
     file: File;
     keyPair: WalletEncryptionKeyPairPayload;
 }) => Promise<WalletEncryptedFilePackage>;
+export declare const encryptPayloadWithWalletEncryptionKey: ({ address, appOrigin, plaintext, keyPair }: {
+    address: `0x${string}`;
+    appOrigin: string;
+    plaintext: string;
+    keyPair: WalletEncryptionKeyPairPayload;
+}) => Promise<WalletEncryptedPayload>;
 export declare const parseWalletEncryptedFilePackage: (value: unknown) => WalletEncryptedFilePackage;
+export declare const parseWalletEncryptedPayload: (value: unknown) => WalletEncryptedPayload;
 export declare const decryptFileWithWalletEncryptionKey: ({ encryptedPackage, keyPair }: {
     encryptedPackage: WalletEncryptedFilePackage;
     keyPair: WalletEncryptionKeyPairPayload;
 }) => Promise<WalletDecryptedFile>;
+export declare const decryptPayloadWithWalletEncryptionKey: ({ encryptedPayload, appOrigin, keyPair }: {
+    encryptedPayload: WalletEncryptedPayload;
+    appOrigin: string;
+    keyPair: WalletEncryptionKeyPairPayload;
+}) => Promise<string>;
 export {};

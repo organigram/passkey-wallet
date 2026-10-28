@@ -77,13 +77,7 @@ export const notifyPasskeyWalletStackSessionChanged = ({ event, appOrigin, addre
         appOrigin,
         address
     });
-    const targets = [
-        window.opener,
-        window.parent !== window ? window.parent : null
-    ].filter((target) => target != null);
-    for (const target of targets) {
-        target.postMessage(message, normalizedTargetOrigin);
-    }
+    window.opener?.postMessage(message, normalizedTargetOrigin);
 };
 export const buildPasskeyWalletSignInPopupUrl = ({ walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin, appOrigin = window.location.origin, nonce, chainId, requestId = createRequestId(), requestedAt = new Date().toISOString() }) => {
     const normalizedAppOrigin = new URL(appOrigin).origin;

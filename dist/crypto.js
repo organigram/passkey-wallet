@@ -1,5 +1,5 @@
 export const passkeyVaultAlgorithm = 'AES-GCM-HKDF-SHA-256';
-export const passkeyVaultKeyVersion = 1;
+export const passkeyVaultKeyVersion = 2;
 export const textEncoder = new TextEncoder();
 export const textDecoder = new TextDecoder();
 export const getCrypto = () => {
@@ -14,10 +14,43 @@ export const bytesToBase64Url = (bytes) => bytesToBase64(bytes)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replaceAll('=', '');
+// Accepts canonical unpadded base64url only. Lenient decoders silently skip
+// unknown characters, so a tampered value could otherwise decode to bytes
+// other than the ones it appears to encode.
 export const base64UrlToBytes = (value) => {
+    if (!/^[A-Za-z0-9_-]*$/.test(value) || value.length % 4 === 1) {
+        throw new Error('Value must be base64url.');
+    }
     const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
     const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
-    return base64ToBytes(padded);
+    const bytes = base64ToBytes(padded);
+    if (bytesToBase64Url(bytes) !== value) {
+        throw new Error('Value must be canonical base64url.');
+    }
+    return bytes;
+};
+export const hasBase64UrlByteLength = (value, isValidLength) => {
+    if (typeof value !== 'string')
+        return false;
+    try {
+        return isValidLength(base64UrlToBytes(value).byteLength);
+    }
+    catch {
+        return false;
+    }
+};
+// AES-GCM appends a 16-byte authentication tag, and vault payloads are never
+// empty.
+export const isPasskeyVaultEnvelope = (value) => {
+    if (typeof value !== 'object' || value == null)
+        return false;
+    const envelope = value;
+    return (envelope.algorithm === passkeyVaultAlgorithm &&
+        envelope.keyVersion === passkeyVaultKeyVersion &&
+        hasBase64UrlByteLength(envelope.salt, length => length === 32) &&
+        hasBase64UrlByteLength(envelope.prfSalt, length => length === 32) &&
+        hasBase64UrlByteLength(envelope.nonce, length => length === 12) &&
+        hasBase64UrlByteLength(envelope.ciphertext, length => length > 16));
 };
 const bytesToBase64 = (bytes) => {
     if (typeof Buffer !== 'undefined') {
@@ -40,7 +73,7 @@ const base64ToBytes = (value) => {
     }
     return bytes;
 };
-export const derivePasskeyVaultKey = async ({ prfOutput, salt }) => {
+export const derivePasskeyVaultKey = async ({ prfOutput, salt, info = 'organigram-passkey-wallet-v2' }) => {
     if (prfOutput.byteLength !== 32) {
         throw new Error('Passkey PRF output must be 32 bytes.');
     }
@@ -48,32 +81,46 @@ export const derivePasskeyVaultKey = async ({ prfOutput, salt }) => {
         throw new Error('Passkey vault salt must be 32 bytes.');
     }
     const crypto = getCrypto();
-    const baseKey = await crypto.subtle.importKey('raw', toArrayBuffer(prfOutput), 'HKDF', false, ['deriveKey']);
+    // toArrayBuffer copies the PRF output; the copy is zeroed like the original.
+    const keyMaterial = toArrayBuffer(prfOutput);
+    const baseKey = await crypto.subtle
+        .importKey('raw', keyMaterial, 'HKDF', false, ['deriveKey'])
+        .finally(() => new Uint8Array(keyMaterial).fill(0));
     return await crypto.subtle.deriveKey({
         name: 'HKDF',
         hash: 'SHA-256',
         salt: toArrayBuffer(salt),
-        info: textEncoder.encode('organigram-passkey-wallet-v1')
+        info: textEncoder.encode(info)
     }, baseKey, {
         name: 'AES-GCM',
         length: 256
     }, false, ['encrypt', 'decrypt']);
 };
-export const encryptPasskeyVaultSecret = async ({ plaintext, key, salt, nonce = randomBytes(12) }) => {
+export const encryptPasskeyVaultSecret = async ({ plaintext, key, salt, prfSalt, nonce = randomBytes(12) }) => {
     if (plaintext.trim() === '') {
         throw new Error('Passkey wallet vault plaintext cannot be empty.');
     }
-    const ciphertext = await getCrypto().subtle.encrypt({
-        name: 'AES-GCM',
-        iv: toArrayBuffer(nonce)
-    }, key, textEncoder.encode(plaintext));
-    return {
-        algorithm: passkeyVaultAlgorithm,
-        keyVersion: passkeyVaultKeyVersion,
-        ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
-        salt: bytesToBase64Url(salt),
-        nonce: bytesToBase64Url(nonce)
-    };
+    if (prfSalt.byteLength !== 32) {
+        throw new Error('Passkey PRF salt must be 32 bytes.');
+    }
+    const plaintextBytes = textEncoder.encode(plaintext);
+    try {
+        const ciphertext = await getCrypto().subtle.encrypt({
+            name: 'AES-GCM',
+            iv: toArrayBuffer(nonce)
+        }, key, plaintextBytes);
+        return {
+            algorithm: passkeyVaultAlgorithm,
+            keyVersion: passkeyVaultKeyVersion,
+            ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
+            salt: bytesToBase64Url(salt),
+            prfSalt: bytesToBase64Url(prfSalt),
+            nonce: bytesToBase64Url(nonce)
+        };
+    }
+    finally {
+        plaintextBytes.fill(0);
+    }
 };
 export const decryptPasskeyVaultSecret = async ({ envelope, key }) => {
     try {
@@ -83,11 +130,16 @@ export const decryptPasskeyVaultSecret = async ({ envelope, key }) => {
         if (envelope.keyVersion !== passkeyVaultKeyVersion) {
             throw new Error('Unsupported passkey wallet vault key version.');
         }
-        const plaintext = await getCrypto().subtle.decrypt({
+        const plaintext = new Uint8Array(await getCrypto().subtle.decrypt({
             name: 'AES-GCM',
             iv: toArrayBuffer(base64UrlToBytes(envelope.nonce))
-        }, key, toArrayBuffer(base64UrlToBytes(envelope.ciphertext)));
-        return textDecoder.decode(plaintext);
+        }, key, toArrayBuffer(base64UrlToBytes(envelope.ciphertext))));
+        try {
+            return textDecoder.decode(plaintext);
+        }
+        finally {
+            plaintext.fill(0);
+        }
     }
     catch (error) {
         throw new Error('Unable to decrypt passkey wallet.', { cause: error });
