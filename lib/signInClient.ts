@@ -170,14 +170,7 @@ export const notifyPasskeyWalletStackSessionChanged = ({
     appOrigin,
     address
   })
-  const targets = [
-    window.opener,
-    window.parent !== window ? window.parent : null
-  ].filter((target): target is Window => target != null)
-
-  for (const target of targets) {
-    target.postMessage(message, normalizedTargetOrigin)
-  }
+  window.opener?.postMessage(message, normalizedTargetOrigin)
 }
 
 export const buildPasskeyWalletSignInPopupUrl = ({

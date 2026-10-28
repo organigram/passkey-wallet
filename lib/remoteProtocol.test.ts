@@ -1,5 +1,10 @@
 import {
   buildPasskeyWalletRemotePopupUrl,
+  passkeyWalletConnectType,
+  parsePasskeyWalletRemoteRequest,
+  passkeyWalletDecryptPayloadType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletSendTransactionType,
   assertPasskeyWalletSignMessageResult,
   assertPasskeyWalletSignTypedDataResult,
   passkeyWalletSignMessageType,
@@ -157,24 +162,60 @@ describe('Organigram wallet remote protocol', () => {
     ).rejects.toThrow(`recovered ${otherAccount.address}`)
   })
 
-  it('can build a sign-message popup URL without embedding the full message', () => {
-    const message = 'hello'.repeat(10_000)
+  it.each([
+    passkeyWalletSignMessageType,
+    passkeyWalletSignTypedDataType,
+    passkeyWalletSendTransactionType,
+    passkeyWalletEncryptPayloadType,
+    passkeyWalletDecryptPayloadType
+  ] as const)(
+    'always delivers %s requests by postMessage',
+    type => {
+      const url = buildPasskeyWalletRemotePopupUrl({
+        walletOrigin: 'https://wallet.example',
+        appOrigin: 'https://app.example',
+        type,
+        chainId: 11155111,
+        requestId: 'request-1',
+        requestedAt: '2026-08-07T00:00:00.000Z',
+        address: account.address
+      })
+
+      expect(url.searchParams.get('messageTransport')).toBe('post-message')
+    }
+  )
+
+  it('reads connect requests from the URL', () => {
     const url = buildPasskeyWalletRemotePopupUrl({
       walletOrigin: 'https://wallet.example',
       appOrigin: 'https://app.example',
-      type: passkeyWalletSignMessageType,
-      chainId: 11155111,
-      requestId: 'request-1',
-      requestedAt: '2026-08-07T00:00:00.000Z',
-      address: account.address,
-      message,
-      messageTransport: 'post-message'
+      type: passkeyWalletConnectType,
+      chainId: 11155111
     })
 
-    expect(url.toString()).not.toContain(message)
-    expect(url.searchParams.get('message')).toBeNull()
-    expect(url.searchParams.get('messageTransport')).toBe('post-message')
+    expect(url.searchParams.get('messageTransport')).toBeNull()
   })
+
+  it.each([passkeyWalletEncryptPayloadType, passkeyWalletDecryptPayloadType])(
+    'refuses %s requests read from the URL',
+    type => {
+      const params = new URLSearchParams({
+        type,
+        version: '1',
+        requestId: 'request-1',
+        appOrigin: 'https://app.example',
+        domain: 'app.example',
+        chainId: '11155111',
+        requestedAt: '2026-08-07T00:00:00.000Z',
+        address: account.address,
+        plaintext: 'workspace-private-key'
+      })
+
+      expect(() => parsePasskeyWalletRemoteRequest(params)).toThrow(
+        'Encrypted payload requests must be delivered by postMessage.'
+      )
+    }
+  )
 
   it('accepts a sign-typed-data result for the requested payload', async () => {
     const signature = await account.signTypedData(typedData)
@@ -220,23 +261,5 @@ describe('Organigram wallet remote protocol', () => {
         typedData
       })
     ).rejects.toThrow(`recovered ${otherAccount.address}`)
-  })
-
-  it('can build a sign-typed-data popup URL without embedding the full payload', () => {
-    const url = buildPasskeyWalletRemotePopupUrl({
-      walletOrigin: 'https://wallet.example',
-      appOrigin: 'https://app.example',
-      type: passkeyWalletSignTypedDataType,
-      chainId: 31337,
-      requestId: 'request-1',
-      requestedAt: '2026-08-07T00:00:00.000Z',
-      address: account.address,
-      typedData,
-      messageTransport: 'post-message'
-    })
-
-    expect(url.toString()).not.toContain('ForwardRequest')
-    expect(url.searchParams.get('typedData')).toBeNull()
-    expect(url.searchParams.get('messageTransport')).toBe('post-message')
   })
 })

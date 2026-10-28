@@ -4,7 +4,6 @@ import { getAddress, hexToString, isAddress, isHex, numberToHex } from 'viem'
 import { createConnector } from 'wagmi'
 
 import {
-  buildPasskeyWalletDisconnectUrl,
   buildPasskeyWalletRemotePopupUrl,
   assertPasskeyWalletSignMessageResult,
   assertPasskeyWalletSignTypedDataResult,
@@ -184,41 +183,6 @@ export const clearOrganigramRemotePasskeyWalletConnection = (): void => {
     getLocalStorage()?.removeItem(remoteWalletConnectionStorageKey)
   } catch {
     // Local storage can be unavailable in hardened browser modes.
-  }
-}
-
-export const notifyOrganigramRemotePasskeyWalletDisconnect = ({
-  walletOrigin,
-  address,
-  chainId
-}: {
-  walletOrigin?: string
-  address: `0x${string}`
-  chainId: number
-}): void => {
-  if (typeof window === 'undefined') return
-
-  try {
-    const url = buildPasskeyWalletDisconnectUrl({
-      walletOrigin,
-      address,
-      chainId
-    })
-    const iframe = window.document.createElement('iframe')
-    iframe.src = url.toString()
-    iframe.hidden = true
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.position = 'absolute'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.style.opacity = '0'
-    window.document.body.appendChild(iframe)
-    window.setTimeout(() => {
-      iframe.remove()
-    }, 3000)
-  } catch {
-    // Disconnect notifications should never block local disconnect.
   }
 }
 
@@ -453,25 +417,16 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
   }): Promise<TResult> => {
     const requestId = createRequestId()
     const approval = consumeOrganigramWalletApprovalSequence()
-    const usesPostMessagePayload =
-      (type === passkeyWalletSignMessageType && message != null) ||
-      (type === passkeyWalletSignTypedDataType && typedData != null) ||
-      (type === passkeyWalletSendTransactionType && transaction != null)
     const popupUrl = buildPasskeyWalletRemotePopupUrl({
       walletOrigin,
       type,
       requestId,
       chainId,
-      messageTransport: usesPostMessagePayload ? 'post-message' : 'query',
       ...approval,
-      ...(address == null ? {} : { address }),
-      ...(message == null ? {} : { message }),
-      ...(typedData == null ? {} : { typedData }),
-      ...(transaction == null ? {} : { transaction })
+      ...(address == null ? {} : { address })
     })
     const expectedOrigin = popupUrl.origin
     const requestPayload =
-      usesPostMessagePayload &&
       address != null &&
       (message != null || typedData != null || transaction != null)
         ? {
@@ -972,22 +927,6 @@ export const createOrganigramRemotePasskeyWallet = ({
             return formatConnectionResult(parameters?.withCapabilities)
           },
           async disconnect() {
-            const connection =
-              address == null
-                ? getOrganigramRemotePasskeyWalletConnection()
-                : {
-                    version: 1 as const,
-                    address,
-                    chainId: activeChain.id,
-                    connectedAt: new Date().toISOString()
-                  }
-            if (connection != null) {
-              notifyOrganigramRemotePasskeyWalletDisconnect({
-                walletOrigin,
-                address: connection.address,
-                chainId: connection.chainId
-              })
-            }
             address = null
             provider = null
             clearOrganigramRemotePasskeyWalletConnection()

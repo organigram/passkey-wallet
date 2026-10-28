@@ -2,7 +2,9 @@ import {
   passkeyWalletConnectType,
   passkeyWalletSignMessageType,
   passkeyWalletSignTypedDataType,
-  passkeyWalletSendTransactionType
+  passkeyWalletSendTransactionType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadType
 } from '@organigram/passkey-wallet/remote-protocol'
 import { useState } from 'react'
 import { useWalletApp } from './Context'
@@ -138,7 +140,11 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                       ? 'Send transaction'
                       : pendingRequest.request.type === passkeyWalletSignTypedDataType
                         ? 'Sign typed data'
-                    : 'Sign message'}
+                        : pendingRequest.request.type === passkeyWalletEncryptPayloadType
+                          ? 'Encrypt recovery data'
+                          : pendingRequest.request.type === passkeyWalletDecryptPayloadType
+                            ? 'Decrypt recovery data'
+                            : 'Sign message'}
                 </dd>
               </div>
               <div>
@@ -165,6 +171,19 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                   )
                 })()
               : null}
+            {pendingRequest.request.type === passkeyWalletEncryptPayloadType ||
+            pendingRequest.request.type === passkeyWalletDecryptPayloadType ? (
+              // The payload itself is a secret: describe its effect instead of
+              // displaying it.
+              <div className='request-message-detail'>
+                <dt>Effect</dt>
+                <dd>
+                  {pendingRequest.request.type === passkeyWalletEncryptPayloadType
+                    ? `${pendingRequest.request.domain} will receive data encrypted with this wallet's key. Only this wallet can decrypt it again, and only for ${pendingRequest.request.domain}.`
+                    : `${pendingRequest.request.domain} will receive data decrypted with this wallet's key. Approve only if you started this recovery on ${pendingRequest.request.domain}.`}
+                </dd>
+              </div>
+            ) : null}
             {pendingRequest.request.type === passkeyWalletSendTransactionType ? (
               <div className='request-message-detail'>
                 <dt>Transaction</dt>

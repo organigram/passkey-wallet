@@ -1,18 +1,16 @@
 import {
   passkeyWalletConnectType,
-  passkeyWalletDisconnectType,
   passkeyWalletSignMessageType,
   passkeyWalletSignTypedDataType,
   passkeyWalletSendTransactionType,
-  parsePasskeyWalletDisconnectRequest,
-  parsePasskeyWalletRemoteRequest,
-  type PasskeyWalletDisconnectRequest
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadType,
+  parsePasskeyWalletRemoteRequest
 } from '@organigram/passkey-wallet/remote-protocol'
 import {
   parsePasskeyWalletSignInRequest,
   passkeyWalletSignInType
 } from '@organigram/passkey-wallet/sign-in-protocol'
-import { formatAddress } from '@organigram/passkey-wallet/vault-registry'
 
 import type {
   RecordWalletPendingConnectionInput,
@@ -57,11 +55,6 @@ export type InitialWalletLocationRequest =
       kind: 'none'
     }
   | {
-      kind: 'disconnect'
-      request: PasskeyWalletDisconnectRequest
-      status: string
-    }
-  | {
       kind: 'pending'
       pendingRequest: PendingWalletRequest
       pendingConnectionRequest: RecordWalletPendingConnectionInput
@@ -78,15 +71,6 @@ export const parseInitialWalletLocationRequest = ({
   const params = new URLSearchParams(search)
   const requestUrl = `${pathname}${search}`
   const type = params.get('type')
-
-  if (type === passkeyWalletDisconnectType) {
-    const request = parsePasskeyWalletDisconnectRequest(params)
-    return {
-      kind: 'disconnect',
-      request,
-      status: `Disconnected ${formatAddress(request.address)} from ${request.domain}.`
-    }
-  }
 
   if (type === passkeyWalletSignInType) {
     const request = parsePasskeyWalletSignInRequest(params)
@@ -109,23 +93,25 @@ export const parseInitialWalletLocationRequest = ({
     }
   }
 
+  // A URL is written by whoever opens it, so its appOrigin cannot be trusted.
+  // Only connect requests are read from it; every other request waits for a
+  // postMessage whose origin the browser authenticates.
   if (
-    type === passkeyWalletConnectType ||
     type === passkeyWalletSignMessageType ||
     type === passkeyWalletSignTypedDataType ||
-    type === passkeyWalletSendTransactionType
+    type === passkeyWalletSendTransactionType ||
+    type === passkeyWalletEncryptPayloadType ||
+    type === passkeyWalletDecryptPayloadType
   ) {
-    if (
-      (type === passkeyWalletSignMessageType ||
-        type === passkeyWalletSignTypedDataType ||
-        type === passkeyWalletSendTransactionType) &&
-      params.get('messageTransport') === 'post-message'
-    ) {
-      return {
-        kind: 'none'
-      }
+    if (params.get('messageTransport') !== 'post-message') {
+      throw new Error('Wallet requests must be delivered by postMessage.')
     }
+    return {
+      kind: 'none'
+    }
+  }
 
+  if (type === passkeyWalletConnectType) {
     const request = parsePasskeyWalletRemoteRequest(params)
     return {
       kind: 'pending',
@@ -134,18 +120,11 @@ export const parseInitialWalletLocationRequest = ({
         request
       },
       pendingConnectionRequest: {
-        kind:
-        request.type === passkeyWalletConnectType
-          ? 'connect'
-        : request.type === passkeyWalletSignTypedDataType
-          ? 'sign-typed-data'
-          : request.type === passkeyWalletSendTransactionType
-            ? 'send-transaction'
-            : 'sign-message',
+        kind: 'connect',
         requestId: request.requestId,
         domain: request.domain,
         appOrigin: request.appOrigin,
-        address: 'address' in request ? request.address : null,
+        address: null,
         chainId: request.chainId,
         requestedAt: request.requestedAt,
         requestUrl

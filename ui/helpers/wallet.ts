@@ -6,12 +6,8 @@ import {
   type PasskeyWalletSignInResult
 } from '@organigram/passkey-wallet/sign-in-protocol'
 import type {
-  PasskeyWalletConnectResult,
   PasskeyWalletRemoteRequest,
-  PasskeyWalletSignMessageResult,
-  PasskeyWalletSignTypedDataResult,
-  PasskeyWalletSendTransactionResult,
-  PasskeyWalletRemoteErrorResult
+  PasskeyWalletRemoteResult
 } from '@organigram/passkey-wallet/remote-protocol'
 import { getStackOrigin } from './remote-backup'
 
@@ -211,21 +207,8 @@ export const downloadTextFile = ({
 }
 
 export const postWalletResult = (
-  result:
-    | PasskeyWalletConnectResult
-    | PasskeyWalletSignMessageResult
-    | PasskeyWalletSignTypedDataResult
-    | PasskeyWalletSendTransactionResult
-    | PasskeyWalletRemoteErrorResult
-    | PasskeyWalletSignInResult,
+  result: PasskeyWalletRemoteResult | PasskeyWalletSignInResult,
   targetOrigin: string
 ): void => {
-  if (window.opener != null) {
-    window.opener.postMessage(result, targetOrigin)
-    return
-  }
-
-  if (window.parent !== window) {
-    window.parent.postMessage(result, targetOrigin)
-  }
+  window.opener?.postMessage(result, targetOrigin)
 }

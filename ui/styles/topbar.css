@@ -208,24 +208,33 @@
 
 .account-menu-account {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid #e0e8e7;
+  border-radius: 7px;
+  background: #fbfcfc;
+}
+
+.account-menu-account:not(.account-menu-account-active):hover {
+  border-color: #9fb0ae;
+  background: #f7faf9;
+}
+
+.account-menu-account-button {
+  display: grid;
   gap: 2px;
   min-width: 0;
   width: 100%;
-  border: 1px solid #e0e8e7;
-  border-radius: 7px;
+  border-radius: 6px;
   padding: 10px 11px;
   color: #213037;
-  background: #fbfcfc;
+  background: transparent;
   text-align: left;
 }
 
-.account-menu-account > span {
-  text-overflow: ellipsis;
-}
-
-.account-menu-account:hover:not(:disabled) {
-  border-color: #9fb0ae;
-  background: #f7faf9;
+.account-menu-account-button:hover:not(:disabled) {
   cursor: pointer;
 }
 
@@ -235,7 +244,7 @@
   background: #eefbf8;
 }
 
-.account-menu-account strong {
+.account-menu-account-button strong {
   overflow: hidden;
   font-size: 13px;
   line-height: 18px;
@@ -243,7 +252,7 @@
   white-space: nowrap;
 }
 
-.account-menu-account small {
+.account-menu-account-button small {
   min-width: 0;
   overflow: hidden;
   color: #526269;
@@ -251,6 +260,45 @@
   line-height: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-menu-copy-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin-right: 8px;
+  border-radius: 6px;
+  color: #3a494f;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.account-menu-account:hover .account-menu-copy-button,
+.account-menu-account:focus-within .account-menu-copy-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.account-menu-copy-button:hover {
+  color: #086b62;
+  background: #e4f5f2;
+  cursor: pointer;
+}
+
+.account-menu-copy-button:focus-visible {
+  outline: 2px solid #00a894;
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .account-menu-copy-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .account-menu-add-actions {

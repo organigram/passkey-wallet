@@ -11,6 +11,8 @@ export type WalletConnectionRequestKind =
   | 'sign-message'
   | 'sign-typed-data'
   | 'send-transaction'
+  | 'encrypt-payload'
+  | 'decrypt-payload'
 
 export type WalletConnectionRecord = {
   id: string
@@ -432,35 +434,6 @@ export const revokeWalletConnectionRecord = (
   const nextRecords = loadWalletConnectionRecords().filter(
     record => record.id !== id
   )
-  saveWalletConnectionRecords(nextRecords)
-
-  return nextRecords
-}
-
-export const revokeActiveWalletConnectionRecord = ({
-  domain,
-  appOrigin,
-  address,
-  chainId
-}: {
-  domain: string
-  appOrigin: string | null
-  address: `0x${string}`
-  chainId?: number
-}): WalletConnectionRecord[] => {
-  const normalizedDomain = domain.trim().toLowerCase()
-  const normalizedAppOrigin = appOrigin?.trim().toLowerCase() ?? null
-  const normalizedAddress = getAddress(address).toLowerCase()
-  const nextRecords = loadWalletConnectionRecords().filter(record => {
-    const matches =
-      record.domain.trim().toLowerCase() === normalizedDomain &&
-      (record.appOrigin?.trim().toLowerCase() ?? null) ===
-        normalizedAppOrigin &&
-      record.address.toLowerCase() === normalizedAddress &&
-      (chainId == null || record.chainId === chainId)
-
-    return !matches
-  })
   saveWalletConnectionRecords(nextRecords)
 
   return nextRecords

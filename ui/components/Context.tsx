@@ -6,6 +6,8 @@ import {
   passkeyWalletSignMessageType,
   passkeyWalletSignTypedDataType,
   passkeyWalletSendTransactionType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadType,
   stringifyPasskeyWalletTypedData,
   type PasskeyWalletSignMessageResult,
   type PasskeyWalletSignTypedDataResult,
@@ -70,7 +72,6 @@ import {
   isWalletPendingConnectionRequestExpired,
   recordWalletPendingConnectionRequest,
   removeWalletPendingConnectionRequest,
-  revokeActiveWalletConnectionRecord,
   revokeWalletConnectionRecordsForAppSession,
   revokeWalletConnectionRecord,
   syncWalletConnectionRecordsForAppSessions,
@@ -460,27 +461,7 @@ const useWalletAppState = () => {
         pathname: window.location.pathname,
         search: window.location.search
       })
-      if (locationRequest.kind === 'disconnect') {
-        const { request } = locationRequest
-        setWalletConnectionRecords(
-          revokeActiveWalletConnectionRecord({
-            domain: request.domain,
-            appOrigin: request.appOrigin,
-            address: request.address
-          })
-        )
-        setWalletPendingConnectionRequests(
-          removeWalletPendingConnectionRequest({
-            kind: 'connect',
-            requestId: request.requestId
-          })
-        )
-        setPendingRequest(null)
-        setStatus(locationRequest.status)
-        window.setTimeout(() => {
-          window.close()
-        }, 250)
-      } else if (locationRequest.kind === 'pending') {
+      if (locationRequest.kind === 'pending') {
         setPendingRequest(locationRequest.pendingRequest)
         setWalletPendingConnectionRequests(
           recordWalletPendingConnectionRequest(
@@ -504,7 +485,9 @@ const useWalletAppState = () => {
     if (
       (params.get('type') !== passkeyWalletSignMessageType &&
         params.get('type') !== passkeyWalletSignTypedDataType &&
-        params.get('type') !== passkeyWalletSendTransactionType) ||
+        params.get('type') !== passkeyWalletSendTransactionType &&
+        params.get('type') !== passkeyWalletEncryptPayloadType &&
+        params.get('type') !== passkeyWalletDecryptPayloadType) ||
       params.get('messageTransport') !== 'post-message'
     ) {
       return
@@ -540,7 +523,9 @@ const useWalletAppState = () => {
       if (
         (request.type !== passkeyWalletSignMessageType &&
           request.type !== passkeyWalletSignTypedDataType &&
-          request.type !== passkeyWalletSendTransactionType) ||
+          request.type !== passkeyWalletSendTransactionType &&
+          request.type !== passkeyWalletEncryptPayloadType &&
+          request.type !== passkeyWalletDecryptPayloadType) ||
         request.appOrigin !== expectedOrigin
       ) {
         return
@@ -574,14 +559,21 @@ const useWalletAppState = () => {
           'typedData',
           stringifyPasskeyWalletTypedData(request.typedData)
         )
-      } else requestParams.set('transaction', JSON.stringify(request.transaction))
+      } else if (request.type === passkeyWalletSendTransactionType) {
+        requestParams.set('transaction', JSON.stringify(request.transaction))
+      } else {
+        // Encrypted payloads must never be copied into the URL or persisted
+        // pending-request state. A reload simply requires Stack to issue the
+        // postMessage request again.
+        requestParams.set('messageTransport', 'post-message')
+      }
       setPendingRequest({
         kind: 'remote',
         request
       })
       setWalletPendingConnectionRequests(
         recordWalletPendingConnectionRequest({
-          kind: request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : 'sign-message',
+          kind: request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : request.type === passkeyWalletEncryptPayloadType ? 'encrypt-payload' : request.type === passkeyWalletDecryptPayloadType ? 'decrypt-payload' : 'sign-message',
           requestId: request.requestId,
           domain: request.domain,
           appOrigin: request.appOrigin,

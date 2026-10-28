@@ -6,6 +6,10 @@ import {
   unlockBrowserPasskeyVault
 } from '@organigram/passkey-wallet/browser-wallet'
 import {
+  decryptPayloadWithWalletEncryptionKey,
+  encryptPayloadWithWalletEncryptionKey
+} from '@organigram/passkey-wallet/encryption'
+import {
   passkeyWalletConnectResultType,
   passkeyWalletConnectType,
   passkeyWalletSignMessageResultType,
@@ -14,12 +18,18 @@ import {
   passkeyWalletSignTypedDataType,
   passkeyWalletSendTransactionResultType,
   passkeyWalletSendTransactionType,
+  passkeyWalletEncryptPayloadResultType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadResultType,
+  passkeyWalletDecryptPayloadType,
   passkeyWalletRemoteErrorResultType,
   type PasskeyWalletConnectResult,
   type PasskeyWalletRemoteRequest,
   type PasskeyWalletSignMessageResult,
   type PasskeyWalletSignTypedDataResult,
   type PasskeyWalletSendTransactionResult,
+  type PasskeyWalletEncryptPayloadResult,
+  type PasskeyWalletDecryptPayloadResult,
   type PasskeyWalletRemoteErrorResult
 } from '@organigram/passkey-wallet/remote-protocol'
 import {
@@ -53,6 +63,7 @@ import {
   type WalletConnectionRecord,
   type WalletPendingConnectionRequest
 } from '../helpers/walletConnections'
+import { getStackOrigin } from '../helpers/remote-backup'
 import { sendRemoteWalletTransaction } from '../helpers/walletLocalActions'
 
 type RequestResult =
@@ -60,6 +71,15 @@ type RequestResult =
   | PasskeyWalletSignMessageResult
   | PasskeyWalletSignTypedDataResult
   | PasskeyWalletSendTransactionResult
+  | PasskeyWalletEncryptPayloadResult
+  | PasskeyWalletDecryptPayloadResult
+
+// Encrypted payload results carry a secret or its ciphertext: they are only
+// delivered to the requesting app, never kept as the visible last result.
+type DisplayedRequestResult = Exclude<
+  RequestResult,
+  PasskeyWalletEncryptPayloadResult | PasskeyWalletDecryptPayloadResult
+>
 
 type WalletApprovalResult =
   | RequestResult
@@ -85,7 +105,7 @@ type UseWalletRequestApprovalOptions = {
   walletChain: Chain
   setActiveAccountAddress: (address: `0x${string}` | null) => void
   setActiveVaultId: (vaultId: string | null) => void
-  setLastResult: (result: RequestResult | null) => void
+  setLastResult: (result: DisplayedRequestResult | null) => void
   setPendingRequest: (request: PendingWalletRequest | null) => void
   setStatus: (status: string) => void
   setVaults: (vaults: StoredVaultRecord[]) => void
@@ -231,7 +251,20 @@ export const useWalletRequestApproval = ({
     }
     setWalletConnectionRecords(loadWalletConnectionRecords())
 
-    const result: PasskeyWalletSignMessageResult | PasskeyWalletSignTypedDataResult | PasskeyWalletSendTransactionResult =
+    const walletEncryptionKey =
+      request.type === passkeyWalletEncryptPayloadType ||
+      request.type === passkeyWalletDecryptPayloadType
+        ? unlockedWallet.walletEncryptionKey
+        : null
+    if (
+      (request.type === passkeyWalletEncryptPayloadType ||
+        request.type === passkeyWalletDecryptPayloadType) &&
+      walletEncryptionKey == null
+    ) {
+      throw new Error('This vault does not contain a wallet encryption key.')
+    }
+
+    const result: RequestResult =
       request.type === passkeyWalletSignMessageType
         ? {
             type: passkeyWalletSignMessageResultType,
@@ -260,6 +293,33 @@ export const useWalletRequestApproval = ({
               typedData: request.typedData
             }),
             completedAt: new Date().toISOString()
+          } : request.type === passkeyWalletEncryptPayloadType ? {
+            type: passkeyWalletEncryptPayloadResultType,
+            version: 1,
+            requestId: request.requestId,
+            domain: request.domain,
+            address: unlockedWallet.address,
+            chainId: request.chainId,
+            encryptedPayload: await encryptPayloadWithWalletEncryptionKey({
+              address: unlockedWallet.address,
+              appOrigin: request.appOrigin,
+              plaintext: request.plaintext,
+              keyPair: walletEncryptionKey!
+            }),
+            completedAt: new Date().toISOString()
+          } : request.type === passkeyWalletDecryptPayloadType ? {
+            type: passkeyWalletDecryptPayloadResultType,
+            version: 1,
+            requestId: request.requestId,
+            domain: request.domain,
+            address: unlockedWallet.address,
+            chainId: request.chainId,
+            plaintext: await decryptPayloadWithWalletEncryptionKey({
+              encryptedPayload: request.encryptedPayload,
+              appOrigin: request.appOrigin,
+              keyPair: walletEncryptionKey!
+            }),
+            completedAt: new Date().toISOString()
           } : {
             type: passkeyWalletSendTransactionResultType,
             version: 1,
@@ -272,26 +332,34 @@ export const useWalletRequestApproval = ({
               transaction: request.transaction,
               walletChain,
               chainId: request.chainId,
-              // The Stack API proxies RPC calls so the passkey-wallet origin
-              // never needs CORS access to a chain provider (or local Anvil).
+              // The configured Stack API proxies RPC calls so the wallet never
+              // needs CORS access to a chain provider (or local Anvil). It is
+              // never derived from the requesting application, which could
+              // otherwise choose the node that prices and relays the
+              // transaction.
               walletRpcUrl: new URL(
                 `/api/rpc/${request.chainId}`,
-                request.appOrigin
+                getStackOrigin()
               ).toString()
             }),
             completedAt: new Date().toISOString()
           }
-    setLastResult(result)
+    setLastResult(
+      result.type === passkeyWalletEncryptPayloadResultType ||
+        result.type === passkeyWalletDecryptPayloadResultType
+        ? null
+        : result
+    )
     setWalletPendingConnectionRequests(
       removeWalletPendingConnectionRequest({
         kind:
-          request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : 'sign-message',
+          request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : request.type === passkeyWalletEncryptPayloadType ? 'encrypt-payload' : request.type === passkeyWalletDecryptPayloadType ? 'decrypt-payload' : 'sign-message',
         requestId: request.requestId
       })
     )
     deliverResult(result, request.appOrigin)
     setPendingRequest(null)
-    setStatus(request.type === passkeyWalletSendTransactionType ? `Submitted transaction for ${request.domain}.` : `Returned signed request to ${request.domain}.`)
+    setStatus(request.type === passkeyWalletSendTransactionType ? `Submitted transaction for ${request.domain}.` : request.type === passkeyWalletEncryptPayloadType || request.type === passkeyWalletDecryptPayloadType ? `Completed encrypted recovery request for ${request.domain}.` : `Returned signed request to ${request.domain}.`)
   }
 
   const approveSignInRequest = async (

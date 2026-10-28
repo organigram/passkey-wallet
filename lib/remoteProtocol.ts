@@ -6,6 +6,11 @@ import {
   recoverTypedDataAddress
 } from 'viem'
 
+import {
+  parseWalletEncryptedPayload,
+  type WalletEncryptedPayload
+} from './encryption'
+
 import { normalizeHost, requireString } from './protocol'
 
 export const passkeyWalletConnectType = 'organigram:wallet:connect'
@@ -21,9 +26,16 @@ export const passkeyWalletSendTransactionType =
   'organigram:wallet:send-transaction'
 export const passkeyWalletSendTransactionResultType =
   'organigram:wallet:send-transaction-result'
+export const passkeyWalletEncryptPayloadType =
+  'organigram:wallet:encrypt-payload'
+export const passkeyWalletEncryptPayloadResultType =
+  'organigram:wallet:encrypt-payload-result'
+export const passkeyWalletDecryptPayloadType =
+  'organigram:wallet:decrypt-payload'
+export const passkeyWalletDecryptPayloadResultType =
+  'organigram:wallet:decrypt-payload-result'
 export const passkeyWalletRemoteErrorResultType =
   'organigram:wallet:remote-error'
-export const passkeyWalletDisconnectType = 'organigram:wallet:disconnect'
 export const passkeyWalletRemoteRequestPayloadType =
   'organigram:wallet:request-payload'
 
@@ -32,7 +44,8 @@ export type PasskeyWalletRemoteRequestType =
   | typeof passkeyWalletSignMessageType
   | typeof passkeyWalletSignTypedDataType
   | typeof passkeyWalletSendTransactionType
-  | typeof passkeyWalletDisconnectType
+  | typeof passkeyWalletEncryptPayloadType
+  | typeof passkeyWalletDecryptPayloadType
 
 type PasskeyWalletRemoteRequestBase = {
   type: PasskeyWalletRemoteRequestType
@@ -94,16 +107,27 @@ export type PasskeyWalletSendTransactionRequest =
     transaction: PasskeyWalletTransaction
   }
 
+export type PasskeyWalletEncryptPayloadRequest =
+  PasskeyWalletRemoteRequestBase & {
+    type: typeof passkeyWalletEncryptPayloadType
+    address: `0x${string}`
+    plaintext: string
+  }
+
+export type PasskeyWalletDecryptPayloadRequest =
+  PasskeyWalletRemoteRequestBase & {
+    type: typeof passkeyWalletDecryptPayloadType
+    address: `0x${string}`
+    encryptedPayload: WalletEncryptedPayload
+  }
+
 export type PasskeyWalletRemoteRequest =
   | PasskeyWalletConnectRequest
   | PasskeyWalletSignMessageRequest
   | PasskeyWalletSignTypedDataRequest
   | PasskeyWalletSendTransactionRequest
-
-export type PasskeyWalletDisconnectRequest = PasskeyWalletRemoteRequestBase & {
-  type: typeof passkeyWalletDisconnectType
-  address: `0x${string}`
-}
+  | PasskeyWalletEncryptPayloadRequest
+  | PasskeyWalletDecryptPayloadRequest
 
 type PasskeyWalletRemoteResultBase = {
   version: 1
@@ -136,6 +160,18 @@ export type PasskeyWalletSendTransactionResult =
     transactionHash: `0x${string}`
   }
 
+export type PasskeyWalletEncryptPayloadResult =
+  PasskeyWalletRemoteResultBase & {
+    type: typeof passkeyWalletEncryptPayloadResultType
+    encryptedPayload: WalletEncryptedPayload
+  }
+
+export type PasskeyWalletDecryptPayloadResult =
+  PasskeyWalletRemoteResultBase & {
+    type: typeof passkeyWalletDecryptPayloadResultType
+    plaintext: string
+  }
+
 export type PasskeyWalletRemoteErrorResult = Omit<
   PasskeyWalletRemoteResultBase,
   'address'
@@ -150,6 +186,8 @@ export type PasskeyWalletRemoteResult =
   | PasskeyWalletSignMessageResult
   | PasskeyWalletSignTypedDataResult
   | PasskeyWalletSendTransactionResult
+  | PasskeyWalletEncryptPayloadResult
+  | PasskeyWalletDecryptPayloadResult
   | PasskeyWalletRemoteErrorResult
 
 export type PasskeyWalletRemoteRequestPayloadMessage = {
@@ -164,7 +202,6 @@ export type PasskeyWalletRemotePopupInput = {
   chainId: number
   requestId?: string
   requestedAt?: string
-  messageTransport?: 'query' | 'post-message'
   approvalStep?: number
   approvalCount?: number
   approvalLabel?: string
@@ -294,7 +331,9 @@ export const isPasskeyWalletRemoteRequestPayloadMessage = (
   if (
     request.type !== passkeyWalletSignMessageType &&
     request.type !== passkeyWalletSignTypedDataType &&
-    request.type !== passkeyWalletSendTransactionType
+    request.type !== passkeyWalletSendTransactionType &&
+    request.type !== passkeyWalletEncryptPayloadType &&
+    request.type !== passkeyWalletDecryptPayloadType
   ) {
     return false
   }
@@ -315,6 +354,27 @@ export const isPasskeyWalletRemoteRequestPayloadMessage = (
       typeof transactionRequest.address === 'string' &&
       isPasskeyWalletTransaction(transactionRequest.transaction)
     )
+  }
+
+  if (request.type === passkeyWalletEncryptPayloadType) {
+    const encryptPayloadRequest =
+      request as Partial<PasskeyWalletEncryptPayloadRequest>
+    return (
+      typeof encryptPayloadRequest.address === 'string' &&
+      typeof encryptPayloadRequest.plaintext === 'string'
+    )
+  }
+
+  if (request.type === passkeyWalletDecryptPayloadType) {
+    const decryptPayloadRequest =
+      request as Partial<PasskeyWalletDecryptPayloadRequest>
+    if (typeof decryptPayloadRequest.address !== 'string') return false
+    try {
+      parseWalletEncryptedPayload(decryptPayloadRequest.encryptedPayload)
+      return true
+    } catch {
+      return false
+    }
   }
 
   const signTypedDataRequest =
@@ -435,19 +495,12 @@ export const buildPasskeyWalletRemotePopupUrl = ({
   requestId = createRequestId(),
   requestedAt = new Date().toISOString(),
   address,
-  message,
-  typedData,
-  transaction,
-  messageTransport = 'query',
   approvalStep,
   approvalCount,
   approvalLabel
 }: PasskeyWalletRemotePopupInput & {
   type: PasskeyWalletRemoteRequestType
   address?: `0x${string}`
-  message?: string
-  typedData?: PasskeyWalletTypedData
-  transaction?: PasskeyWalletTransaction
 }): URL => {
   const normalizedAppOrigin = requireHttpsOrigin(appOrigin, 'appOrigin').origin
   const popupUrl = requireHttpsOrigin(walletOrigin, 'walletOrigin')
@@ -468,47 +521,16 @@ export const buildPasskeyWalletRemotePopupUrl = ({
     }
   }
   if (address != null) popupUrl.searchParams.set('address', address)
-  if (message != null && messageTransport === 'post-message') {
-    popupUrl.searchParams.set('messageTransport', messageTransport)
-  } else if (message != null) {
-    popupUrl.searchParams.set('message', message)
-  }
-  if (typedData != null && messageTransport === 'post-message') {
-    popupUrl.searchParams.set('messageTransport', messageTransport)
-  } else if (typedData != null) {
-    popupUrl.searchParams.set(
-      'typedData',
-      stringifyPasskeyWalletTypedData(typedData)
-    )
-  }
-  if (transaction != null && messageTransport === 'post-message') {
-    popupUrl.searchParams.set('messageTransport', messageTransport)
-  } else if (transaction != null) {
-    popupUrl.searchParams.set('transaction', JSON.stringify(transaction))
+  // Every request other than connect is delivered by postMessage. The wallet
+  // then reads the requesting origin from the browser-authenticated
+  // MessageEvent instead of trusting the appOrigin written in this URL, and
+  // no message, transaction or secret lands in a URL.
+  if (type !== passkeyWalletConnectType) {
+    popupUrl.searchParams.set('messageTransport', 'post-message')
   }
 
   return popupUrl
 }
-
-export const buildPasskeyWalletDisconnectUrl = ({
-  walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin,
-  appOrigin = window.location.origin,
-  chainId,
-  requestId = createRequestId(),
-  requestedAt = new Date().toISOString(),
-  address
-}: PasskeyWalletRemotePopupInput & {
-  address: `0x${string}`
-}): URL =>
-  buildPasskeyWalletRemotePopupUrl({
-    walletOrigin,
-    appOrigin,
-    type: passkeyWalletDisconnectType,
-    chainId,
-    requestId,
-    requestedAt,
-    address
-  })
 
 export const parsePasskeyWalletRemoteRequest = (
   params: URLSearchParams
@@ -518,9 +540,17 @@ export const parsePasskeyWalletRemoteRequest = (
     type !== passkeyWalletConnectType &&
     type !== passkeyWalletSignMessageType &&
     type !== passkeyWalletSignTypedDataType &&
-    type !== passkeyWalletSendTransactionType
+    type !== passkeyWalletSendTransactionType &&
+    type !== passkeyWalletEncryptPayloadType &&
+    type !== passkeyWalletDecryptPayloadType
   ) {
     throw new Error('Unsupported Organigram wallet remote request type.')
+  }
+  if (
+    type === passkeyWalletEncryptPayloadType ||
+    type === passkeyWalletDecryptPayloadType
+  ) {
+    throw new Error('Encrypted payload requests must be delivered by postMessage.')
   }
 
   const version = Number(requireString(params.get('version'), 'version'))
@@ -616,52 +646,20 @@ export const parsePasskeyWalletRemoteRequest = (
   }
 }
 
-export const parsePasskeyWalletDisconnectRequest = (
-  params: URLSearchParams
-): PasskeyWalletDisconnectRequest => {
-  const type = requireString(params.get('type'), 'type')
-  if (type !== passkeyWalletDisconnectType) {
-    throw new Error('Unsupported Organigram wallet disconnect request type.')
-  }
-
-  const version = Number(requireString(params.get('version'), 'version'))
-  if (version !== 1) {
-    throw new Error('Unsupported Organigram wallet disconnect request version.')
-  }
-
-  const appOrigin = requireHttpsOrigin(
-    requireString(params.get('appOrigin'), 'appOrigin'),
-    'appOrigin'
-  ).origin
-  const domain = normalizeHost(requireString(params.get('domain'), 'domain'))
-  if (domain !== normalizeHost(new URL(appOrigin).host)) {
-    throw new Error('Organigram wallet disconnect domain must match appOrigin.')
-  }
-
-  return {
-    type: passkeyWalletDisconnectType,
-    version: 1,
-    requestId: requireString(params.get('requestId'), 'requestId'),
-    appOrigin,
-    domain,
-    chainId: requireChainId(params.get('chainId')),
-    requestedAt: requireString(params.get('requestedAt'), 'requestedAt'),
-    address: requireAddress(params.get('address'), 'address')
-  }
-}
-
 const requestPasskeyWalletRemoteResult = async <
   TResult extends PasskeyWalletRemoteResult
 >({
   popupUrl,
   requestId,
   expectedResultType,
-  timeoutMs
+  timeoutMs,
+  requestPayload
 }: {
   popupUrl: URL
   requestId: string
   expectedResultType: TResult['type']
   timeoutMs: number
+  requestPayload?: PasskeyWalletRemoteRequestPayloadMessage
 }): Promise<TResult> => {
   const expectedOrigin = popupUrl.origin
   const popup = window.open(
@@ -679,9 +677,16 @@ const requestPasskeyWalletRemoteResult = async <
       cleanup()
       reject(new Error('Organigram Passkey Wallet request timed out.'))
     }, timeoutMs)
+    const payloadTimer =
+      requestPayload == null
+        ? null
+        : window.setInterval(() => {
+            popup.postMessage(requestPayload, expectedOrigin)
+          }, 250)
 
     const cleanup = (): void => {
       window.clearTimeout(timeout)
+      if (payloadTimer != null) window.clearInterval(payloadTimer)
       window.removeEventListener('message', handleMessage)
     }
 
@@ -704,7 +709,86 @@ const requestPasskeyWalletRemoteResult = async <
       resolve(data as TResult)
     }
 
+    if (requestPayload != null) popup.postMessage(requestPayload, expectedOrigin)
     window.addEventListener('message', handleMessage)
+  })
+}
+
+const createPostMessagePayload = (
+  request: PasskeyWalletRemoteRequest
+): PasskeyWalletRemoteRequestPayloadMessage => ({
+  type: passkeyWalletRemoteRequestPayloadType,
+  version: 1,
+  request
+})
+
+export const requestPasskeyWalletEncryptPayload = async ({
+  timeoutMs = 5 * 60 * 1000,
+  plaintext,
+  ...input
+}: PasskeyWalletRemotePopupInput & {
+  address: `0x${string}`
+  plaintext: string
+  timeoutMs?: number
+}): Promise<PasskeyWalletEncryptPayloadResult> => {
+  const requestId = input.requestId ?? createRequestId()
+  const popupUrl = buildPasskeyWalletRemotePopupUrl({
+    ...input,
+    type: passkeyWalletEncryptPayloadType,
+    requestId
+  })
+  const request: PasskeyWalletEncryptPayloadRequest = {
+    type: passkeyWalletEncryptPayloadType,
+    version: 1,
+    requestId,
+    appOrigin: popupUrl.searchParams.get('appOrigin') ?? '',
+    domain: popupUrl.searchParams.get('domain') ?? '',
+    chainId: input.chainId,
+    requestedAt: popupUrl.searchParams.get('requestedAt') ?? '',
+    address: input.address,
+    plaintext
+  }
+  return await requestPasskeyWalletRemoteResult<PasskeyWalletEncryptPayloadResult>({
+    popupUrl,
+    requestId,
+    expectedResultType: passkeyWalletEncryptPayloadResultType,
+    timeoutMs,
+    requestPayload: createPostMessagePayload(request)
+  })
+}
+
+export const requestPasskeyWalletDecryptPayload = async ({
+  timeoutMs = 5 * 60 * 1000,
+  encryptedPayload,
+  ...input
+}: PasskeyWalletRemotePopupInput & {
+  address: `0x${string}`
+  encryptedPayload: WalletEncryptedPayload
+  timeoutMs?: number
+}): Promise<PasskeyWalletDecryptPayloadResult> => {
+  const requestId = input.requestId ?? createRequestId()
+  const popupUrl = buildPasskeyWalletRemotePopupUrl({
+    ...input,
+    type: passkeyWalletDecryptPayloadType,
+    requestId
+  })
+  const request: PasskeyWalletDecryptPayloadRequest = {
+    type: passkeyWalletDecryptPayloadType,
+    version: 1,
+    requestId,
+    appOrigin: popupUrl.searchParams.get('appOrigin') ?? '',
+    domain: popupUrl.searchParams.get('domain') ?? '',
+    chainId: input.chainId,
+    requestedAt: popupUrl.searchParams.get('requestedAt') ?? '',
+    address: input.address,
+    encryptedPayload
+  }
+  return await requestPasskeyWalletRemoteResult<PasskeyWalletDecryptPayloadResult>({
+    popupUrl,
+    requestId,
+    expectedResultType: passkeyWalletDecryptPayloadResultType,
+    timeoutMs,
+    requestPayload: createPostMessagePayload(request)
   })
 }
 
@@ -731,6 +815,7 @@ export const requestPasskeyWalletConnect = async ({
 
 export const requestPasskeyWalletSignMessage = async ({
   timeoutMs = 5 * 60 * 1000,
+  message,
   ...input
 }: PasskeyWalletSignMessagePopupInput & {
   timeoutMs?: number
@@ -741,19 +826,31 @@ export const requestPasskeyWalletSignMessage = async ({
     type: passkeyWalletSignMessageType,
     requestId
   })
+  const request: PasskeyWalletSignMessageRequest = {
+    type: passkeyWalletSignMessageType,
+    version: 1,
+    requestId,
+    appOrigin: popupUrl.searchParams.get('appOrigin') ?? '',
+    domain: popupUrl.searchParams.get('domain') ?? '',
+    chainId: input.chainId,
+    requestedAt: popupUrl.searchParams.get('requestedAt') ?? '',
+    address: input.address,
+    message
+  }
 
   const result =
     await requestPasskeyWalletRemoteResult<PasskeyWalletSignMessageResult>({
       popupUrl,
       requestId,
       expectedResultType: passkeyWalletSignMessageResultType,
-      timeoutMs
+      timeoutMs,
+      requestPayload: createPostMessagePayload(request)
     })
   await assertPasskeyWalletSignMessageResult({
     result,
     address: input.address,
     chainId: input.chainId,
-    message: input.message
+    message
   })
 
   return result
