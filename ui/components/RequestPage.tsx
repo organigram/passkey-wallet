@@ -37,6 +37,15 @@ export const WalletRequestPage = (): JSX.Element => {
               <small>Approval sequence: {approvalSequence}</small>
             ) : null}
             <small>RP ID: {getPasskeyRpId()}</small>
+            <small>
+              <a
+                href={runtimeConfig.verifyUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                How to verify this wallet
+              </a>
+            </small>
           </div>
 
           {error != null ? <div className='error-banner'>{error}</div> : null}

@@ -4,7 +4,9 @@ const walletRuntimeIdentity = {
   title: 'Sign, send, forget.',
   subtitle:
     'A minimal, client-side wallet providing passkeys credentials, key rotation, backup and recovery. Auditable, free and open source, you can run it locally to sign, send or receive funds, or authenticate users to your own domain. Keys are encrypted locally and never leave the browser.',
-  githubUrl: 'https://github.com/organigram/passkey-wallet'
+  githubUrl: 'https://github.com/organigram/passkey-wallet',
+  verifyUrl:
+    'https://organigram.ai/en/docs/advanced/passkey-wallet-security#Verify_the_wallet_you_are_using'
 } as const
 
 export type WalletRuntimeThemeConfig = {
@@ -22,6 +24,7 @@ export type WalletRuntimeConfig = {
   tagline: string
   subtitle: string
   githubUrl: string
+  verifyUrl: string
   stackOrigin: string
   passkeyRpId: string
   defaultChainId: number
@@ -139,6 +142,7 @@ const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
     tagline: readString(value.tagline, defaultWalletRuntimeConfig.tagline),
     subtitle: walletRuntimeIdentity.subtitle,
     githubUrl: walletRuntimeIdentity.githubUrl,
+    verifyUrl: walletRuntimeIdentity.verifyUrl,
     stackOrigin: readHttpsOrigin(
       value.stackOrigin,
       defaultWalletRuntimeConfig.stackOrigin

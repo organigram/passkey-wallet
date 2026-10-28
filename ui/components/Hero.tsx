@@ -38,6 +38,14 @@ export const WalletHero = (): JSX.Element => {
         <div>
           <h1>{runtimeConfig.title}</h1>
           <p>{runtimeConfig.subtitle}</p>
+          <a
+            className='hero-verify-link'
+            href={runtimeConfig.verifyUrl}
+            target='_blank'
+            rel='noopener noreferrer'
+          >
+            How to verify this wallet
+          </a>
         </div>
         {heroAccountPanel}
       </div>

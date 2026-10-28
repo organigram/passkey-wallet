@@ -43,12 +43,23 @@
   line-height: 1.55;
 }
 
+.hero-verify-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: #526269;
+  font-size: 14px;
+}
+
 .status-panel {
   border: 1px solid #dce5e4;
   border-radius: 8px;
   padding: 18px;
   background: rgba(255, 255, 255);
   box-shadow: 0 18px 44px rgba(29, 47, 50, 0.08);
+}
+
+.status-panel small a {
+  color: inherit;
 }
 
 .status-panel span,

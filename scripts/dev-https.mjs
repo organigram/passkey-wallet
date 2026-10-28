@@ -62,6 +62,11 @@ const proxyRequest = (clientRequest, clientResponse) => {
   )
 
   upstreamRequest.on('error', error => {
+    // The upstream can fail after the response started (a closed page).
+    if (clientResponse.headersSent) {
+      clientResponse.destroy()
+      return
+    }
     clientResponse.writeHead(502, { 'Content-Type': 'text/plain' })
     clientResponse.end(`Vite dev server is not reachable yet.\n${error.message}`)
   })
@@ -106,11 +111,15 @@ server.on('upgrade', (clientRequest, clientSocket, head) => {
         ''
       ].join('\r\n')
     )
+    // A page closing its HMR websocket resets these sockets; without an
+    // error listener the reset is an uncaught exception that stops the proxy.
+    upstreamSocket.on('error', () => clientSocket.destroy())
     upstreamSocket.write(head)
     upstreamSocket.pipe(clientSocket)
     clientSocket.pipe(upstreamSocket)
   })
 
+  clientSocket.on('error', () => upstreamRequest.destroy())
   upstreamRequest.on('error', () => {
     clientSocket.destroy()
   })
