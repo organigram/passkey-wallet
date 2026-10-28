@@ -64,6 +64,7 @@ import {
   type WalletPendingConnectionRequest
 } from '../helpers/walletConnections'
 import { getStackOrigin } from '../helpers/remote-backup'
+import { getPasskeyRpId } from '../helpers/runtimeConfig'
 import { sendRemoteWalletTransaction } from '../helpers/walletLocalActions'
 
 type RequestResult =
@@ -147,7 +148,8 @@ export const useWalletRequestApproval = ({
       )
     }
     const result = await unlockBrowserPasskeyVault({
-      records
+      records,
+      rpId: getPasskeyRpId()
     })
     const account =
       requestedAddress == null

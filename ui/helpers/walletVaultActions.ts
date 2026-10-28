@@ -16,6 +16,7 @@ import {
   updateStaticPasskeyVaultEncryptionKey
 } from '@organigram/passkey-wallet/browser-wallet'
 
+import { getPasskeyRpId } from './runtimeConfig'
 import {
   addAccountToLocalVaults,
   vaultHasAccount,
@@ -50,7 +51,8 @@ export const registerWalletVault = async (
 
   return registerBrowserPasskeyVault({
     recoveryPhrase: phrase,
-    name: options.name || defaultWalletName
+    name: options.name || defaultWalletName,
+    rpId: getPasskeyRpId()
   })
 }
 
@@ -75,7 +77,8 @@ export const registerAdditionalPasskeyForWallet = async ({
   return registerAdditionalBrowserPasskeyVault({
     wallet: unlockedWallet,
     name,
-    accounts: sourceRecord.accounts
+    accounts: sourceRecord.accounts,
+    rpId: getPasskeyRpId()
   })
 }
 
@@ -136,7 +139,8 @@ export const unlockActiveWalletAccount = async (
   }
 
   const result = await unlockBrowserPasskeyVault({
-    records: activeAccount.passkeys
+    records: activeAccount.passkeys,
+    rpId: getPasskeyRpId()
   })
   const account = getVaultAccount(result.record, activeAccount.address)
   if (account == null) {
@@ -165,7 +169,8 @@ export const updateActiveWalletEncryptionKey = async ({
 
   return updateStaticPasskeyVaultEncryptionKey({
     records: activeAccount.passkeys,
-    walletEncryptionKey
+    walletEncryptionKey,
+    rpId: getPasskeyRpId()
   })
 }
 

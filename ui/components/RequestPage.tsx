@@ -1,7 +1,5 @@
-import { inferPasskeyRpId } from '@organigram/passkey-wallet/browser-wallet'
-
 import { useWalletApp } from './Context'
-import { getWalletRuntimeConfig } from '../helpers/runtimeConfig'
+import { getPasskeyRpId, getWalletRuntimeConfig } from '../helpers/runtimeConfig'
 import { WalletRequestPanel } from './RequestPanel'
 import { useWalletSetupPanels } from './SetupPanels'
 
@@ -38,7 +36,7 @@ export const WalletRequestPage = (): JSX.Element => {
             {approvalSequence != null ? (
               <small>Approval sequence: {approvalSequence}</small>
             ) : null}
-            <small>RP ID: {inferPasskeyRpId() || 'not available'}</small>
+            <small>RP ID: {getPasskeyRpId()}</small>
           </div>
 
           {error != null ? <div className='error-banner'>{error}</div> : null}

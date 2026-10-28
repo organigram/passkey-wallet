@@ -23,8 +23,6 @@
     ".": "./dist/index.js",
     "./crypto": "./dist/crypto.js",
     "./encryption": "./dist/encryption.js",
-    "./vault": "./dist/vault.js",
-    "./wallet": "./dist/wallet.js",
     "./local-vault": {
       "types": "./dist/localVault.d.ts",
       "import": "./dist/localVault.js",
@@ -44,11 +42,6 @@
       "types": "./dist/backup.d.ts",
       "import": "./dist/backup.js",
       "default": "./dist/backup.js"
-    },
-    "./rp-id": {
-      "types": "./dist/rpId.d.ts",
-      "import": "./dist/rpId.js",
-      "default": "./dist/rpId.js"
     },
     "./remote-protocol": {
       "types": "./dist/remoteProtocol.d.ts",

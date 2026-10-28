@@ -1,8 +1,11 @@
 import {
+  base64UrlToBytes,
+  bytesToBase64Url,
   decryptPasskeyVaultSecret,
   derivePasskeyVaultKey,
   encryptPasskeyVaultSecret,
-  isPasskeyPrfSupported
+  isPasskeyPrfSupported,
+  isPasskeyVaultEnvelope
 } from './crypto'
 
 describe('passkey vault crypto', () => {
@@ -18,6 +21,7 @@ describe('passkey vault crypto', () => {
       plaintext: 'secret vault payload',
       key,
       salt,
+      prfSalt: new Uint8Array(32).fill(4),
       nonce
     })
 
@@ -39,7 +43,8 @@ describe('passkey vault crypto', () => {
     const envelope = await encryptPasskeyVaultSecret({
       plaintext: 'secret vault payload',
       key,
-      salt
+      salt,
+      prfSalt: new Uint8Array(32).fill(4)
     })
 
     await expect(
@@ -65,5 +70,60 @@ describe('passkey vault crypto', () => {
         }
       })
     ).resolves.toBe(false)
+  })
+
+  it('separates keys derived from one PRF output for different purposes', async () => {
+    const prfOutput = new Uint8Array(32).fill(1)
+    const salt = new Uint8Array(32).fill(2)
+    const vaultKey = await derivePasskeyVaultKey({ prfOutput, salt })
+    const backupKey = await derivePasskeyVaultKey({
+      prfOutput,
+      salt,
+      info: 'organigram-passkey-wallet-remote-backup-v2:0x00'
+    })
+    const envelope = await encryptPasskeyVaultSecret({
+      plaintext: 'secret vault payload',
+      key: vaultKey,
+      salt,
+      prfSalt: new Uint8Array(32).fill(4)
+    })
+
+    await expect(
+      decryptPasskeyVaultSecret({ envelope, key: backupKey })
+    ).rejects.toThrow(/Unable to decrypt passkey wallet/)
+  })
+
+  it('accepts only well-formed v2 vault envelopes', async () => {
+    const salt = new Uint8Array(32).fill(2)
+    const envelope = await encryptPasskeyVaultSecret({
+      plaintext: 'secret vault payload',
+      key: await derivePasskeyVaultKey({
+        prfOutput: new Uint8Array(32).fill(1),
+        salt
+      }),
+      salt,
+      prfSalt: new Uint8Array(32).fill(4)
+    })
+
+    expect(isPasskeyVaultEnvelope(envelope)).toBe(true)
+    expect(isPasskeyVaultEnvelope({ ...envelope, keyVersion: 1 })).toBe(false)
+    expect(
+      isPasskeyVaultEnvelope({
+        ...envelope,
+        prfSalt: bytesToBase64Url(new Uint8Array(16))
+      })
+    ).toBe(false)
+    expect(
+      isPasskeyVaultEnvelope({ ...envelope, nonce: `${envelope.nonce}=` })
+    ).toBe(false)
+    const { prfSalt: _prfSalt, ...withoutPrfSalt } = envelope
+    expect(isPasskeyVaultEnvelope(withoutPrfSalt)).toBe(false)
+  })
+
+  it('rejects non-canonical base64url', () => {
+    expect(base64UrlToBytes('AQID')).toEqual(new Uint8Array([1, 2, 3]))
+    expect(() => base64UrlToBytes('AQI*D')).toThrow()
+    expect(() => base64UrlToBytes('AQ==')).toThrow()
+    expect(() => base64UrlToBytes('AR')).toThrow('canonical')
   })
 })

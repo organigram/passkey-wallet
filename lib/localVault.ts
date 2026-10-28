@@ -1,4 +1,4 @@
-import type { PasskeyVaultEnvelopeData } from './crypto'
+import { isPasskeyVaultEnvelope, type PasskeyVaultEnvelopeData } from './crypto'
 
 export type StoredVaultAccount = {
   address: `0x${string}`
@@ -101,11 +101,11 @@ export const isStoredVaultRecord = (
     record.credentialId !== '' &&
     typeof record.name === 'string' &&
     Array.isArray(record.transports) &&
+    record.transports.every(transport => typeof transport === 'string') &&
     isPasskeyDevice(record.passkeyDevice) &&
     typeof record.createdAt === 'string' &&
     (record.lastUsedAt == null || typeof record.lastUsedAt === 'string') &&
-    typeof record.envelope === 'object' &&
-    record.envelope != null
+    isPasskeyVaultEnvelope(record.envelope)
   )
 }
 

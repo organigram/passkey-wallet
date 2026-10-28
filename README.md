@@ -87,6 +87,23 @@ pnpm build:artifact
 `artifacts/passkey-wallet-app-v<version>.tar.gz` with a `.sha256` checksum and
 manifest.
 
+Each production build of https://wallet.organigram.ai is published as a
+release of this repository, with the SHA-256 of every served file. To check
+that the live wallet serves one of these releases unchanged, run from a clone
+of this repository:
+
+```sh
+node scripts/verify-runtime-dist.mjs --url https://wallet.organigram.ai
+```
+
+With Node.js 24 and pnpm 10.28, rebuilding a release commit reproduces its files:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run build
+node scripts/verify-runtime-dist.mjs --dist app-dist --manifest <release manifest>
+```
+
 
 ## Architecture
 
@@ -243,9 +260,35 @@ This model assumes:
 - the server verifies credential counters and user verification;
 - recovery phrase export is treated as a sensitive operation;
 - backup passkey deletion never leaves the user without a recovery method;
-- a compromised browser session can access unlocked wallet material in the milliseconds where it is
-  in memory before being automatically locked again by the wallet.
+- a compromised browser session can read unlocked wallet material while a
+  request is being processed.
 
+### Passkey scope
+
+Passkeys are created for the exact hostname serving the wallet (for example
+`wallet.organigram.ai`). Any page served under the passkey RP ID can request
+the PRF output that decrypts the vault, so no other application should be
+hosted under it. Dapps never need the wallet RP ID: they reach the wallet
+through its popup and `postMessage`.
+
+A wallet served from a subdomain, such as a local instance at
+`local.wallet.organigram.ai`, can reuse the passkeys of its parent wallet host
+by setting `passkeyRpId` in `passkey-wallet.config.json` (or
+`PASSKEY_WALLET_PASSKEY_RP_ID` at build time) to `wallet.organigram.ai`. The
+value must be the current hostname or one of its parent domains.
+
+You can resolve that name to your machine in its hosts file rather than through public
+DNS, so that even a malicious DNS record cannot send it elsewhere (macOS and Linux):
+
+```sh
+grep -q 'local.wallet.organigram.ai' /etc/hosts || echo '127.0.0.1 local.wallet.organigram.ai' | sudo tee -a /etc/hosts
+```
+
+Then run `PASSKEY_WALLET_UI_HOST=local.wallet.organigram.ai pnpm dev` and open
+`https://local.wallet.organigram.ai:3002`.
+
+The wallet sends a `Content-Security-Policy` that forbids third-party scripts
+and any framing of the wallet origin.
 
 ## Browser Compatibility
 

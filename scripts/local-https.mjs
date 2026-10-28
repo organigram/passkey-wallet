@@ -12,7 +12,7 @@ const defaultCertificateHosts = [
   'localhost',
   '127.0.0.1',
   '::1',
-  'local.organigram.ai'
+  'local.wallet.organigram.ai'
 ]
 
 const parseDotEnvLine = line => {
@@ -67,7 +67,7 @@ export const getLocalHttpsConfig = (profileOrHost = 'localhost') => {
   const requestedProfile = profileOrHost.trim() || 'localhost'
   const hostFromProfile =
     requestedProfile === 'local-organigram'
-      ? 'local.organigram.ai'
+      ? 'local.wallet.organigram.ai'
       : requestedProfile
   const host = process.env.PASSKEY_WALLET_UI_HOST ?? hostFromProfile
   const listenHost = process.env.PASSKEY_WALLET_UI_LISTEN_HOST ?? '127.0.0.1'

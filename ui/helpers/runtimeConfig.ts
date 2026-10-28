@@ -23,6 +23,7 @@ export type WalletRuntimeConfig = {
   subtitle: string
   githubUrl: string
   stackOrigin: string
+  passkeyRpId: string
   defaultChainId: number
   defaultRpcUrl: string
   rpcUrlTemplate: string
@@ -71,6 +72,18 @@ const readHttpsOrigin = (value: unknown, fallback: string): string =>
     } catch {
       return false
     }
+  })
+
+// A configured rpId lets a wallet served from a subdomain (for example
+// local.wallet.organigram.ai) use the passkeys of its parent wallet host.
+// WebAuthn only accepts the current hostname or one of its parent domains.
+const readPasskeyRpId = (value: unknown): string =>
+  readString(value, '', candidate => {
+    const hostname = window.location.hostname
+    return (
+      /^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(candidate) &&
+      (hostname === candidate || hostname.endsWith(`.${candidate}`))
+    )
   })
 
 const readColor = (value: unknown, fallback: string): string =>
@@ -130,6 +143,7 @@ const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
       value.stackOrigin,
       defaultWalletRuntimeConfig.stackOrigin
     ),
+    passkeyRpId: readPasskeyRpId(value.passkeyRpId),
     defaultChainId: readPositiveInteger(
       value.defaultChainId,
       defaultWalletRuntimeConfig.defaultChainId
@@ -209,3 +223,8 @@ export const loadWalletRuntimeConfig =
   }
 
 export const getWalletRuntimeConfig = (): WalletRuntimeConfig => runtimeConfig
+
+// Passkeys are scoped to the wallet host itself by default, so that no other
+// application under the same parent domain can request the wallet PRF output.
+export const getPasskeyRpId = (): string =>
+  runtimeConfig.passkeyRpId || window.location.hostname

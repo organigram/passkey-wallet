@@ -107,9 +107,15 @@ export const getPasskeyWalletCorsAllowedOrigins = ({
   allowedOrigins?: string
 }): string[] => {
   const requestOrigin = new URL(getPasskeyWalletRequestOrigin(request))
-  const localOrigins = ['localhost', '127.0.0.1', '[::1]', 'local.organigram.ai']
-    .includes(requestOrigin.hostname)
-    ? [`https://${requestOrigin.hostname}:${localWalletHttpsPort}`]
+  // A local Stack accepts the local wallet on its own host, and on the
+  // wallet subdomain that reuses the passkeys of the production wallet.
+  const localOrigins = ['localhost', '127.0.0.1', '[::1]'].includes(
+    requestOrigin.hostname
+  )
+    ? [
+        `https://${requestOrigin.hostname}:${localWalletHttpsPort}`,
+        `https://local.wallet.organigram.ai:${localWalletHttpsPort}`
+      ]
     : []
 
   return uniqueOrigins([
