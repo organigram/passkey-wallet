@@ -1,4 +1,5 @@
 import { passkeyWalletSignInResultType, passkeyWalletSignInType } from './signInProtocol';
+import { getAcceptedWalletOrigins, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
 export const passkeyWalletStackSessionChangedType = 'organigram:wallet:stack-session-changed';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
@@ -96,13 +97,15 @@ export const buildPasskeyWalletSignInPopupUrl = ({ walletOrigin = getConfiguredW
 };
 export const requestPasskeyWalletSignIn = async ({ nonce, chainId, popup: preparedPopup, walletOrigin, timeoutMs = 5 * 60 * 1000 }) => {
     const requestId = createRequestId();
-    const popupUrl = buildPasskeyWalletSignInPopupUrl({
+    const configuredPopupUrl = buildPasskeyWalletSignInPopupUrl({
         walletOrigin,
         nonce,
         chainId,
         requestId
     });
-    const expectedOrigin = popupUrl.origin;
+    const configuredOrigin = configuredPopupUrl.origin;
+    const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin);
+    const popupUrl = toPreferredWalletUrl(configuredPopupUrl);
     const popup = preparedPopup ??
         window.open(popupUrl.toString(), 'passkey-wallet-sign-in', 'popup,width=480,height=720');
     if (popup == null) {
@@ -114,16 +117,23 @@ export const requestPasskeyWalletSignIn = async ({ nonce, chainId, popup: prepar
         openedPopup.focus();
     }
     return await new Promise((resolve, reject) => {
+        const stopWatchingLocalWallet = watchLocalWalletPopup({
+            popup: openedPopup,
+            popupUrl,
+            walletOrigin: configuredOrigin,
+            requestId
+        });
         const timeout = window.setTimeout(() => {
-            window.removeEventListener('message', handleMessage);
+            cleanup();
             reject(new Error('Organigram Passkey Wallet sign-in timed out.'));
         }, timeoutMs);
         const cleanup = () => {
             window.clearTimeout(timeout);
+            stopWatchingLocalWallet();
             window.removeEventListener('message', handleMessage);
         };
         function handleMessage(event) {
-            if (event.origin !== expectedOrigin)
+            if (!acceptedOrigins.includes(event.origin))
                 return;
             const data = event.data;
             if (data == null ||
@@ -136,6 +146,7 @@ export const requestPasskeyWalletSignIn = async ({ nonce, chainId, popup: prepar
                 return;
             }
             cleanup();
+            rememberWalletOrigin(configuredOrigin, event.origin);
             openedPopup.close();
             resolve(data);
         }

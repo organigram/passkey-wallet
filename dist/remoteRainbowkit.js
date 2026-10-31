@@ -2,6 +2,7 @@ import { getAddress, hexToString, isAddress, isHex, numberToHex } from 'viem';
 import { createConnector } from 'wagmi';
 import { buildPasskeyWalletRemotePopupUrl, assertPasskeyWalletSignMessageResult, assertPasskeyWalletSignTypedDataResult, parsePasskeyWalletTypedData, passkeyWalletRemoteRequestPayloadType, passkeyWalletConnectResultType, passkeyWalletConnectType, passkeyWalletSignMessageResultType, passkeyWalletSignMessageType, passkeyWalletSignTypedDataResultType, passkeyWalletSignTypedDataType, passkeyWalletSendTransactionResultType, passkeyWalletSendTransactionType, passkeyWalletRemoteErrorResultType } from './remoteProtocol';
 import { organigramPasskeyWalletIcon, organigramPasskeyWalletId } from './types';
+import { getAcceptedWalletOrigins, postToWalletPopup, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
 const remoteWalletName = 'Passkey Wallet';
 const remoteWalletId = organigramPasskeyWalletId;
 const remoteWalletConnectionStorageKey = 'organigram.remotePasskeyWallet.connection.v1';
@@ -214,7 +215,7 @@ const createRemotePopupTransport = (walletOrigin) => {
     const request = async ({ type, expectedResultType, chainId, address, message, typedData, transaction, timeoutMs = 5 * 60 * 1000 }) => {
         const requestId = createRequestId();
         const approval = consumeOrganigramWalletApprovalSequence();
-        const popupUrl = buildPasskeyWalletRemotePopupUrl({
+        const configuredPopupUrl = buildPasskeyWalletRemotePopupUrl({
             walletOrigin,
             type,
             requestId,
@@ -222,7 +223,9 @@ const createRemotePopupTransport = (walletOrigin) => {
             ...approval,
             ...(address == null ? {} : { address })
         });
-        const expectedOrigin = popupUrl.origin;
+        const configuredOrigin = configuredPopupUrl.origin;
+        const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin);
+        const popupUrl = toPreferredWalletUrl(configuredPopupUrl);
         const requestPayload = address != null &&
             (message != null || typedData != null || transaction != null)
             ? {
@@ -255,7 +258,14 @@ const createRemotePopupTransport = (walletOrigin) => {
         if (popup == null) {
             throw new Error('Unable to open Organigram Wallet popup.');
         }
+        const openedPopup = popup;
         return await new Promise((resolve, reject) => {
+            const stopWatchingLocalWallet = watchLocalWalletPopup({
+                popup: openedPopup,
+                popupUrl,
+                walletOrigin: configuredOrigin,
+                requestId
+            });
             const timeout = window.setTimeout(() => {
                 cleanup();
                 closePopup();
@@ -264,19 +274,20 @@ const createRemotePopupTransport = (walletOrigin) => {
             const payloadTimer = requestPayload == null
                 ? null
                 : window.setInterval(() => {
-                    popup?.postMessage(requestPayload, expectedOrigin);
+                    postToWalletPopup(openedPopup, requestPayload, configuredOrigin);
                 }, 250);
             const cleanup = () => {
                 window.clearTimeout(timeout);
                 if (payloadTimer != null)
                     window.clearInterval(payloadTimer);
+                stopWatchingLocalWallet();
                 window.removeEventListener('message', handleMessage);
             };
             if (requestPayload != null) {
-                popup?.postMessage(requestPayload, expectedOrigin);
+                postToWalletPopup(openedPopup, requestPayload, configuredOrigin);
             }
             function handleMessage(event) {
-                if (event.origin !== expectedOrigin)
+                if (!acceptedOrigins.includes(event.origin))
                     return;
                 const data = event.data;
                 if (data != null &&
@@ -308,6 +319,7 @@ const createRemotePopupTransport = (walletOrigin) => {
                 else {
                     closePopup();
                 }
+                rememberWalletOrigin(configuredOrigin, event.origin);
                 resolve(data);
             }
             window.addEventListener('message', handleMessage);

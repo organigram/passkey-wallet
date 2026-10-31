@@ -12,6 +12,25 @@ export const GitHubIcon = (): JSX.Element => (
   </svg>
 )
 
+export const ExternalLinkIcon = (): JSX.Element => (
+  <svg
+    aria-hidden='true'
+    className='external-link-icon'
+    fill='none'
+    height='14'
+    viewBox='0 0 24 24'
+    width='14'
+  >
+    <path
+      d='M7 17 17 7M9 7h8v8'
+      stroke='currentColor'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      strokeWidth='2'
+    />
+  </svg>
+)
+
 export const CopyIcon = (): JSX.Element => (
   <svg
     xmlns='http://www.w3.org/2000/svg'

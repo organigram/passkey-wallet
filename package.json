@@ -64,6 +64,11 @@
       "import": "./dist/signInClient.js",
       "default": "./dist/signInClient.js"
     },
+    "./wallet-origin": {
+      "types": "./dist/walletOrigin.d.ts",
+      "import": "./dist/walletOrigin.js",
+      "default": "./dist/walletOrigin.js"
+    },
     "./server": {
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
@@ -114,7 +119,7 @@
     "app:icons": "node scripts/generate-rainbowkit-network-icons.mjs",
     "app:cert": "node scripts/generate-certs.mjs",
     "predev": "pnpm run build:lib",
-    "dev": "node scripts/dev-https.mjs localhost",
+    "dev": "node scripts/dev-https.mjs",
     "predev:proxy-target": "pnpm run build:lib",
     "dev:proxy-target": "vite --force --host 127.0.0.1 --port 3003",
     "app:preview": "vite preview --host 127.0.0.1 --port 3003",

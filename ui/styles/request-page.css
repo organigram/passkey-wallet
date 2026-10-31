@@ -28,24 +28,27 @@
   text-decoration: none;
 }
 
-.request-account-link {
+.external-text-link {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  justify-self: center;
   color: rgba(82, 98, 105, 0.84);
   font-size: 13px;
   font-weight: 750;
   line-height: 18px;
   text-decoration: none;
-  margin-top: 16px;
 }
 
-.request-account-link:hover {
+.external-text-link:hover {
   color: #0b766b;
   text-decoration: underline;
 }
 
-.request-account-link .external-link-icon {
+.external-text-link .external-link-icon {
   flex: 0 0 auto;
+}
+
+.request-account-link {
+  justify-self: center;
+  margin-top: 16px;
 }

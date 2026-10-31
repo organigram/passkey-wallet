@@ -1,6 +1,7 @@
 import { getAddress, isAddress, isHex, recoverMessageAddress, recoverTypedDataAddress } from 'viem';
 import { parseWalletEncryptedPayload } from './encryption';
 import { normalizeHost, requireString } from './protocol';
+import { getAcceptedWalletOrigins, postToWalletPopup, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
 export const passkeyWalletConnectType = 'organigram:wallet:connect';
 export const passkeyWalletConnectResultType = 'organigram:wallet:connect-result';
 export const passkeyWalletSignMessageType = 'organigram:wallet:sign-message';
@@ -301,13 +302,21 @@ export const parsePasskeyWalletRemoteRequest = (params) => {
     };
 };
 const requestPasskeyWalletRemoteResult = async ({ popupUrl, requestId, expectedResultType, timeoutMs, requestPayload }) => {
-    const expectedOrigin = popupUrl.origin;
-    const popup = window.open(popupUrl.toString(), 'passkey-wallet', 'popup,width=480,height=720');
+    const configuredOrigin = popupUrl.origin;
+    const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin);
+    const preferredPopupUrl = toPreferredWalletUrl(popupUrl);
+    const popup = window.open(preferredPopupUrl.toString(), 'passkey-wallet', 'popup,width=480,height=720');
     if (popup == null) {
         throw new Error('Unable to open Organigram Passkey Wallet popup.');
     }
     const openedPopup = popup;
     return await new Promise((resolve, reject) => {
+        const stopWatchingLocalWallet = watchLocalWalletPopup({
+            popup,
+            popupUrl: preferredPopupUrl,
+            walletOrigin: configuredOrigin,
+            requestId
+        });
         const timeout = window.setTimeout(() => {
             cleanup();
             reject(new Error('Organigram Passkey Wallet request timed out.'));
@@ -315,16 +324,17 @@ const requestPasskeyWalletRemoteResult = async ({ popupUrl, requestId, expectedR
         const payloadTimer = requestPayload == null
             ? null
             : window.setInterval(() => {
-                popup.postMessage(requestPayload, expectedOrigin);
+                postToWalletPopup(popup, requestPayload, configuredOrigin);
             }, 250);
         const cleanup = () => {
             window.clearTimeout(timeout);
             if (payloadTimer != null)
                 window.clearInterval(payloadTimer);
+            stopWatchingLocalWallet();
             window.removeEventListener('message', handleMessage);
         };
         function handleMessage(event) {
-            if (event.origin !== expectedOrigin)
+            if (!acceptedOrigins.includes(event.origin))
                 return;
             const data = event.data;
             if (data == null ||
@@ -336,11 +346,13 @@ const requestPasskeyWalletRemoteResult = async ({ popupUrl, requestId, expectedR
                 return;
             }
             cleanup();
+            rememberWalletOrigin(configuredOrigin, event.origin);
             openedPopup.close();
             resolve(data);
         }
-        if (requestPayload != null)
-            popup.postMessage(requestPayload, expectedOrigin);
+        if (requestPayload != null) {
+            postToWalletPopup(popup, requestPayload, configuredOrigin);
+        }
         window.addEventListener('message', handleMessage);
     });
 };

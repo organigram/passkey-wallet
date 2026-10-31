@@ -3,6 +3,12 @@ import {
   passkeyWalletSignInType,
   type PasskeyWalletSignInResult
 } from './signInProtocol'
+import {
+  getAcceptedWalletOrigins,
+  rememberWalletOrigin,
+  toPreferredWalletUrl,
+  watchLocalWalletPopup
+} from './walletOrigin'
 
 export type PasskeyWalletPopupInput = {
   walletOrigin?: string
@@ -210,13 +216,15 @@ export const requestPasskeyWalletSignIn = async ({
   timeoutMs?: number
 }): Promise<PasskeyWalletSignInResult> => {
   const requestId = createRequestId()
-  const popupUrl = buildPasskeyWalletSignInPopupUrl({
+  const configuredPopupUrl = buildPasskeyWalletSignInPopupUrl({
     walletOrigin,
     nonce,
     chainId,
     requestId
   })
-  const expectedOrigin = popupUrl.origin
+  const configuredOrigin = configuredPopupUrl.origin
+  const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin)
+  const popupUrl = toPreferredWalletUrl(configuredPopupUrl)
   const popup =
     preparedPopup ??
     window.open(
@@ -234,18 +242,25 @@ export const requestPasskeyWalletSignIn = async ({
   }
 
   return await new Promise((resolve, reject) => {
+    const stopWatchingLocalWallet = watchLocalWalletPopup({
+      popup: openedPopup,
+      popupUrl,
+      walletOrigin: configuredOrigin,
+      requestId
+    })
     const timeout = window.setTimeout(() => {
-      window.removeEventListener('message', handleMessage)
+      cleanup()
       reject(new Error('Organigram Passkey Wallet sign-in timed out.'))
     }, timeoutMs)
 
     const cleanup = (): void => {
       window.clearTimeout(timeout)
+      stopWatchingLocalWallet()
       window.removeEventListener('message', handleMessage)
     }
 
     function handleMessage(event: MessageEvent): void {
-      if (event.origin !== expectedOrigin) return
+      if (!acceptedOrigins.includes(event.origin)) return
       const data = event.data as Partial<PasskeyWalletSignInResult> | null
       if (
         data == null ||
@@ -260,6 +275,7 @@ export const requestPasskeyWalletSignIn = async ({
       }
 
       cleanup()
+      rememberWalletOrigin(configuredOrigin, event.origin)
       openedPopup.close()
       resolve(data as PasskeyWalletSignInResult)
     }

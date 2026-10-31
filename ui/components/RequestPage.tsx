@@ -1,5 +1,10 @@
 import { useWalletApp } from './Context'
 import { getPasskeyRpId, getWalletRuntimeConfig } from '../helpers/runtimeConfig'
+import {
+  canHandOffToLocalWallet,
+  localWalletInstructionsUrl
+} from '../helpers/localWallet'
+import { ExternalLinkIcon } from './Icons'
 import { WalletRequestPanel } from './RequestPanel'
 import { useWalletSetupPanels } from './SetupPanels'
 
@@ -46,6 +51,17 @@ export const WalletRequestPage = (): JSX.Element => {
                 How to verify this wallet
               </a>
             </small>
+            {canHandOffToLocalWallet() ? (
+              <small>
+                <a
+                  href={localWalletInstructionsUrl(runtimeConfig.githubUrl)}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                >
+                  Run this wallet on your computer, with the same accounts
+                </a>
+              </small>
+            ) : null}
           </div>
 
           {error != null ? <div className='error-banner'>{error}</div> : null}
@@ -74,28 +90,13 @@ export const WalletRequestPage = (): JSX.Element => {
             </div>
           )}
           <a
-            className='request-account-link'
+            className='external-text-link request-account-link'
             href='/settings#connections'
             target='_blank'
             rel='noopener noreferrer'
           >
             <span>Open in Passkey Wallet</span>
-            <svg
-              aria-hidden='true'
-              className='external-link-icon'
-              fill='none'
-              height='14'
-              viewBox='0 0 24 24'
-              width='14'
-            >
-              <path
-                d='M7 17 17 7M9 7h8v8'
-                stroke='currentColor'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth='2'
-              />
-            </svg>
+            <ExternalLinkIcon />
           </a>
         </div>
       </div>

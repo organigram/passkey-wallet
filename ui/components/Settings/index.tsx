@@ -6,6 +6,7 @@ import { WalletEncryptionPanel } from '../WalletEncryptionPanel'
 import { AccountsSettingsPanel } from './AccountsSettingsPanel'
 import { ConnectionsSettingsPanel } from './ConnectionsSettingsPanel'
 import { CurrencySettingsPanel } from './CurrencySettingsPanel'
+import { LocalWalletSettingsPanel } from './LocalWalletSettingsPanel'
 
 const SettingsAnchor = ({
   children,
@@ -70,6 +71,9 @@ export const WalletSettingsView = (): JSX.Element => {
           </SettingsAnchor>
           <SettingsAnchor id='backup'>
             <RemoteBackupPanel />
+          </SettingsAnchor>
+          <SettingsAnchor id='local-wallet'>
+            <LocalWalletSettingsPanel />
           </SettingsAnchor>
         </div>
       </div>

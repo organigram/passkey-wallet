@@ -33,12 +33,41 @@ const viteProcess = spawn(
   ],
   {
     cwd: packageDir,
-    env: process.env,
+    // Vite only answers its own hostnames: allow the one the proxy forwards.
+    env: { ...process.env, __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: config.host },
     stdio: 'inherit'
   }
 )
 
+// The runtime config sets the passkey RP ID without editing the committed file.
+const serveRuntimeConfig = clientResponse => {
+  const runtimeConfig = JSON.parse(
+    readFileSync(join(packageDir, 'public', 'passkey-wallet.config.json'), 'utf8')
+  )
+  clientResponse.writeHead(200, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store'
+  })
+  // Sharing the passkeys of a deployment makes this server its local copy.
+  clientResponse.end(
+    JSON.stringify({
+      ...runtimeConfig,
+      passkeyRpId: config.passkeyRpId,
+      localWalletOrigin: config.origin
+    })
+  )
+}
+
 const proxyRequest = (clientRequest, clientResponse) => {
+  if (
+    config.passkeyRpId !== '' &&
+    clientRequest.method === 'GET' &&
+    clientRequest.url?.split('?')[0] === '/passkey-wallet.config.json'
+  ) {
+    serveRuntimeConfig(clientResponse)
+    return
+  }
+
   const upstreamRequest = httpRequest(
     {
       hostname: '127.0.0.1',
@@ -138,6 +167,7 @@ server.listen(config.sourcePort, config.listenHost, () => {
   console.info(`Organigram Passkey Wallet UI ready at ${config.origin}`)
   console.info(`HTTPS proxy listen host: ${config.listenHost}`)
   console.info(`Vite target: http://127.0.0.1:${config.targetPort}`)
+  console.info(`Passkey RP ID: ${config.passkeyRpId || config.host}`)
   console.info('')
 })
 

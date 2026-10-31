@@ -1,7 +1,7 @@
 import { createPublicClient, http } from 'viem';
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from 'viem/siwe';
 import { parseWalletEncryptionPublicKeySiweResource } from './encryption';
-const defaultPasskeyWalletOrigin = 'https://wallet.organigram.ai';
+import { getAcceptedWalletOrigins, officialWalletOrigin } from './walletOrigin';
 const localWalletHttpsPort = '3002';
 const createRequestId = () => {
     if (globalThis.crypto?.randomUUID != null) {
@@ -43,17 +43,14 @@ export const createPasskeyWalletManifest = (request) => {
 };
 export const getPasskeyWalletCorsAllowedOrigins = ({ allowedOrigins = '', request, walletUrl }) => {
     const requestOrigin = new URL(getPasskeyWalletRequestOrigin(request));
-    // A local Stack accepts the local wallet on its own host, and on the
-    // wallet subdomain that reuses the passkeys of the production wallet.
+    // A local Stack also accepts the wallet served on its own host.
     const localOrigins = ['localhost', '127.0.0.1', '[::1]'].includes(requestOrigin.hostname)
-        ? [
-            `https://${requestOrigin.hostname}:${localWalletHttpsPort}`,
-            `https://local.wallet.organigram.ai:${localWalletHttpsPort}`
-        ]
+        ? [`https://${requestOrigin.hostname}:${localWalletHttpsPort}`]
         : [];
     return uniqueOrigins([
-        defaultPasskeyWalletOrigin,
-        ...(walletUrl == null ? [] : parseAllowedOrigins(walletUrl)),
+        // The official wallet, and the copy of it a user runs on their machine.
+        ...getAcceptedWalletOrigins(officialWalletOrigin),
+        ...(walletUrl == null ? [] : parseAllowedOrigins(walletUrl).flatMap(getAcceptedWalletOrigins)),
         ...parseAllowedOrigins(allowedOrigins),
         ...localOrigins
     ]);

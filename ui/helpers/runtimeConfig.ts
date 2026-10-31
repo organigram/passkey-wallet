@@ -27,6 +27,8 @@ export type WalletRuntimeConfig = {
   verifyUrl: string
   stackOrigin: string
   passkeyRpId: string
+  /** The copy of this wallet that users can run locally, if any. */
+  localWalletOrigin: string
   defaultChainId: number
   defaultRpcUrl: string
   rpcUrlTemplate: string
@@ -148,6 +150,7 @@ const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
       defaultWalletRuntimeConfig.stackOrigin
     ),
     passkeyRpId: readPasskeyRpId(value.passkeyRpId),
+    localWalletOrigin: readHttpsOrigin(value.localWalletOrigin, ''),
     defaultChainId: readPositiveInteger(
       value.defaultChainId,
       defaultWalletRuntimeConfig.defaultChainId

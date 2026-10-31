@@ -205,6 +205,11 @@ const createRuntimeConfig = (currentConfig, profile) => ({
     currentConfig.stackOrigin
   ),
   passkeyRpId: readPasskeyRpId(profile, currentConfig.passkeyRpId),
+  localWalletOrigin: readHttpsOrigin(
+    profile,
+    'LOCAL_WALLET_ORIGIN',
+    currentConfig.localWalletOrigin ?? ''
+  ),
   defaultChainId: readPositiveInteger(
     profile,
     'DEFAULT_CHAIN_ID',

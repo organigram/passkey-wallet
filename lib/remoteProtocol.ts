@@ -12,6 +12,13 @@ import {
 } from './encryption'
 
 import { normalizeHost, requireString } from './protocol'
+import {
+  getAcceptedWalletOrigins,
+  postToWalletPopup,
+  rememberWalletOrigin,
+  toPreferredWalletUrl,
+  watchLocalWalletPopup
+} from './walletOrigin'
 
 export const passkeyWalletConnectType = 'organigram:wallet:connect'
 export const passkeyWalletConnectResultType = 'organigram:wallet:connect-result'
@@ -661,9 +668,11 @@ const requestPasskeyWalletRemoteResult = async <
   timeoutMs: number
   requestPayload?: PasskeyWalletRemoteRequestPayloadMessage
 }): Promise<TResult> => {
-  const expectedOrigin = popupUrl.origin
+  const configuredOrigin = popupUrl.origin
+  const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin)
+  const preferredPopupUrl = toPreferredWalletUrl(popupUrl)
   const popup = window.open(
-    popupUrl.toString(),
+    preferredPopupUrl.toString(),
     'passkey-wallet',
     'popup,width=480,height=720'
   )
@@ -673,6 +682,12 @@ const requestPasskeyWalletRemoteResult = async <
   const openedPopup = popup
 
   return await new Promise((resolve, reject) => {
+    const stopWatchingLocalWallet = watchLocalWalletPopup({
+      popup,
+      popupUrl: preferredPopupUrl,
+      walletOrigin: configuredOrigin,
+      requestId
+    })
     const timeout = window.setTimeout(() => {
       cleanup()
       reject(new Error('Organigram Passkey Wallet request timed out.'))
@@ -681,17 +696,18 @@ const requestPasskeyWalletRemoteResult = async <
       requestPayload == null
         ? null
         : window.setInterval(() => {
-            popup.postMessage(requestPayload, expectedOrigin)
+            postToWalletPopup(popup, requestPayload, configuredOrigin)
           }, 250)
 
     const cleanup = (): void => {
       window.clearTimeout(timeout)
       if (payloadTimer != null) window.clearInterval(payloadTimer)
+      stopWatchingLocalWallet()
       window.removeEventListener('message', handleMessage)
     }
 
     function handleMessage(event: MessageEvent): void {
-      if (event.origin !== expectedOrigin) return
+      if (!acceptedOrigins.includes(event.origin)) return
       const data = event.data as Partial<PasskeyWalletRemoteResult> | null
       if (
         data == null ||
@@ -705,11 +721,14 @@ const requestPasskeyWalletRemoteResult = async <
       }
 
       cleanup()
+      rememberWalletOrigin(configuredOrigin, event.origin)
       openedPopup.close()
       resolve(data as TResult)
     }
 
-    if (requestPayload != null) popup.postMessage(requestPayload, expectedOrigin)
+    if (requestPayload != null) {
+      postToWalletPopup(popup, requestPayload, configuredOrigin)
+    }
     window.addEventListener('message', handleMessage)
   })
 }

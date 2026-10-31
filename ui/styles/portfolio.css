@@ -530,6 +530,8 @@
 
 .settings-switch span {
   position: relative;
+  /* A long label must not squeeze the track under its knob. */
+  flex: none;
   width: 34px;
   height: 20px;
   border: 1px solid #cbd7d6;

@@ -33,6 +33,13 @@ import {
   type PasskeyProviderEvent,
   type PasskeyProviderListener
 } from './types'
+import {
+  getAcceptedWalletOrigins,
+  postToWalletPopup,
+  rememberWalletOrigin,
+  toPreferredWalletUrl,
+  watchLocalWalletPopup
+} from './walletOrigin'
 
 const remoteWalletName = 'Passkey Wallet'
 const remoteWalletId = organigramPasskeyWalletId
@@ -417,7 +424,7 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
   }): Promise<TResult> => {
     const requestId = createRequestId()
     const approval = consumeOrganigramWalletApprovalSequence()
-    const popupUrl = buildPasskeyWalletRemotePopupUrl({
+    const configuredPopupUrl = buildPasskeyWalletRemotePopupUrl({
       walletOrigin,
       type,
       requestId,
@@ -425,7 +432,9 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
       ...approval,
       ...(address == null ? {} : { address })
     })
-    const expectedOrigin = popupUrl.origin
+    const configuredOrigin = configuredPopupUrl.origin
+    const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin)
+    const popupUrl = toPreferredWalletUrl(configuredPopupUrl)
     const requestPayload =
       address != null &&
       (message != null || typedData != null || transaction != null)
@@ -465,7 +474,14 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
       throw new Error('Unable to open Organigram Wallet popup.')
     }
 
+    const openedPopup = popup
     return await new Promise((resolve, reject) => {
+      const stopWatchingLocalWallet = watchLocalWalletPopup({
+        popup: openedPopup,
+        popupUrl,
+        walletOrigin: configuredOrigin,
+        requestId
+      })
       const timeout = window.setTimeout(() => {
         cleanup()
         closePopup()
@@ -475,21 +491,22 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
         requestPayload == null
           ? null
           : window.setInterval(() => {
-              popup?.postMessage(requestPayload, expectedOrigin)
+              postToWalletPopup(openedPopup, requestPayload, configuredOrigin)
             }, 250)
 
       const cleanup = (): void => {
         window.clearTimeout(timeout)
         if (payloadTimer != null) window.clearInterval(payloadTimer)
+        stopWatchingLocalWallet()
         window.removeEventListener('message', handleMessage)
       }
 
       if (requestPayload != null) {
-        popup?.postMessage(requestPayload, expectedOrigin)
+        postToWalletPopup(openedPopup, requestPayload, configuredOrigin)
       }
 
       function handleMessage(event: MessageEvent): void {
-        if (event.origin !== expectedOrigin) return
+        if (!acceptedOrigins.includes(event.origin)) return
         const data = event.data as Partial<PasskeyWalletRemoteResult> | null
         if (
           data != null &&
@@ -526,6 +543,7 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
         } else {
           closePopup()
         }
+        rememberWalletOrigin(configuredOrigin, event.origin)
         resolve(data as TResult)
       }
 
