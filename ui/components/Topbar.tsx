@@ -114,7 +114,7 @@ const CurrentAccountMenu = (): JSX.Element | null => {
                               <button
                                 type='button'
                                 className='account-menu-copy-button'
-                                onClick={() => void copyAddress(account.address)}
+                                onClick={() => { copyAddress(account.address).catch(() => undefined) }}
                                 aria-label={
                                   copiedAddress === account.address
                                     ? `${account.name} address copied`
