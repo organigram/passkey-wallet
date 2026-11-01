@@ -20,7 +20,9 @@ const config: Config = {
           esModuleInterop: true,
           types: ['jest', 'node']
         },
-        diagnostics: false,
+        // ui/ imports this package by name, which ts-jest cannot resolve;
+        // `pnpm typecheck:app` type-checks ui/ and its tests instead.
+        diagnostics: { exclude: ['**/ui/**'] },
         useESM: true
       }
     ]

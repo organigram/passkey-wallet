@@ -1,19 +1,31 @@
 import type { Wallet, WalletDetailsParams } from '@rainbow-me/rainbowkit'
 import type { Chain, EIP1193RequestFn, Hex } from 'viem'
-import { getAddress, hexToString, numberToHex } from 'viem'
+import { getAddress, hexToString, isAddress, isHex, numberToHex } from 'viem'
 import { createConnector } from 'wagmi'
 
 import {
-  buildPasskeyWalletDisconnectUrl,
   buildPasskeyWalletRemotePopupUrl,
+  assertPasskeyWalletSignMessageResult,
+  assertPasskeyWalletSignTypedDataResult,
+  parsePasskeyWalletTypedData,
+  passkeyWalletRemoteRequestPayloadType,
   passkeyWalletConnectResultType,
   passkeyWalletConnectType,
   passkeyWalletSignMessageResultType,
   passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataResultType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionResultType,
+  passkeyWalletSendTransactionType,
+  passkeyWalletRemoteErrorResultType,
   type PasskeyWalletConnectResult,
   type PasskeyWalletRemoteRequestType,
   type PasskeyWalletRemoteResult,
-  type PasskeyWalletSignMessageResult
+  type PasskeyWalletSignMessageResult,
+  type PasskeyWalletSignTypedDataResult,
+  type PasskeyWalletSendTransactionResult,
+  type PasskeyWalletTransaction,
+  type PasskeyWalletTypedData
 } from './remoteProtocol'
 import {
   organigramPasskeyWalletIcon,
@@ -21,6 +33,13 @@ import {
   type PasskeyProviderEvent,
   type PasskeyProviderListener
 } from './types'
+import {
+  getAcceptedWalletOrigins,
+  postToWalletPopup,
+  rememberWalletOrigin,
+  toPreferredWalletUrl,
+  watchLocalWalletPopup
+} from './walletOrigin'
 
 const remoteWalletName = 'Passkey Wallet'
 const remoteWalletId = organigramPasskeyWalletId
@@ -55,10 +74,24 @@ type RemoteRequestPersonalSign = (input: {
   message: string
 }) => Promise<PasskeyWalletSignMessageResult>
 
+type RemoteRequestSignTypedData = (input: {
+  address: `0x${string}`
+  chainId: number
+  typedData: PasskeyWalletTypedData
+}) => Promise<PasskeyWalletSignTypedDataResult>
+
+type RemoteRequestSendTransaction = (input: {
+  address: `0x${string}`
+  chainId: number
+  transaction: PasskeyWalletTransaction
+}) => Promise<PasskeyWalletSendTransactionResult>
+
 export type CreateOrganigramRemotePasskeyWalletInput = {
   walletOrigin?: string
   requestConnect?: RemoteRequestConnect
   requestPersonalSign?: RemoteRequestPersonalSign
+  requestSignTypedData?: RemoteRequestSignTypedData
+  requestSendTransaction?: RemoteRequestSendTransaction
 }
 
 export type HydrateOrganigramRemoteWalletConnectionInput = {
@@ -94,7 +127,9 @@ const parseStoredConnection = (
   if (value == null || value === '') return null
 
   try {
-    const parsed = JSON.parse(value) as Partial<OrganigramRemotePasskeyWalletConnection>
+    const parsed = JSON.parse(
+      value
+    ) as Partial<OrganigramRemotePasskeyWalletConnection>
     if (
       parsed.version !== 1 ||
       typeof parsed.address !== 'string' ||
@@ -158,41 +193,6 @@ export const clearOrganigramRemotePasskeyWalletConnection = (): void => {
   }
 }
 
-export const notifyOrganigramRemotePasskeyWalletDisconnect = ({
-  walletOrigin,
-  address,
-  chainId
-}: {
-  walletOrigin?: string
-  address: `0x${string}`
-  chainId: number
-}): void => {
-  if (typeof window === 'undefined') return
-
-  try {
-    const url = buildPasskeyWalletDisconnectUrl({
-      walletOrigin,
-      address,
-      chainId
-    })
-    const iframe = window.document.createElement('iframe')
-    iframe.src = url.toString()
-    iframe.hidden = true
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.position = 'absolute'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.style.opacity = '0'
-    window.document.body.appendChild(iframe)
-    window.setTimeout(() => {
-      iframe.remove()
-    }, 3000)
-  } catch {
-    // Disconnect notifications should never block local disconnect.
-  }
-}
-
 export const hydrateOrganigramRemoteWalletConnection = async <
   TConnector extends HydrateOrganigramRemoteWalletConnectionConnector
 >({
@@ -225,13 +225,70 @@ export const hydrateOrganigramRemoteWalletConnection = async <
 }
 
 const createRequestId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID()
   }
 
-  return `req_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2)}`
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+}
+
+type PendingApprovalSequence = {
+  count: number
+  nextStep: number
+  label?: string
+}
+
+let pendingApprovalSequence: PendingApprovalSequence | null = null
+
+/**
+ * Adds presentation-only context to the next wallet approvals. This lets an
+ * app tell the wallet that one user action requires several signatures,
+ * without broadening any approval or altering its signed payload.
+ */
+export const beginOrganigramWalletApprovalSequence = ({
+  count,
+  label
+}: {
+  count: number
+  label?: string
+}): (() => void) => {
+  if (!Number.isSafeInteger(count) || count < 1) {
+    throw new Error(
+      'Organigram Wallet approval count must be a positive integer.'
+    )
+  }
+
+  const sequence: PendingApprovalSequence = {
+    count,
+    nextStep: 1,
+    ...(label == null || label === '' ? {} : { label })
+  }
+  pendingApprovalSequence = sequence
+
+  return () => {
+    if (pendingApprovalSequence === sequence) {
+      pendingApprovalSequence = null
+    }
+  }
+}
+
+const consumeOrganigramWalletApprovalSequence = () => {
+  const sequence = pendingApprovalSequence
+  if (sequence == null) return undefined
+
+  const approval = {
+    approvalStep: sequence.nextStep,
+    approvalCount: sequence.count,
+    ...(sequence.label == null ? {} : { approvalLabel: sequence.label })
+  }
+  sequence.nextStep += 1
+  if (sequence.nextStep > sequence.count) {
+    pendingApprovalSequence = null
+  }
+  return approval
 }
 
 const normalizePersonalSignMessage = (message: unknown): string => {
@@ -243,6 +300,81 @@ const normalizePersonalSignMessage = (message: unknown): string => {
   }
 
   return message
+}
+
+const normalizeSignTypedDataRequest = (
+  params: readonly unknown[],
+  connectedAddress: `0x${string}`
+): { address: `0x${string}`; typedData: PasskeyWalletTypedData } => {
+  const [first, second] = params
+  const firstIsAddress =
+    typeof first === 'string' && /^0x[a-fA-F0-9]{40}$/.test(first)
+  const secondIsAddress =
+    typeof second === 'string' && /^0x[a-fA-F0-9]{40}$/.test(second)
+  const address = (
+    firstIsAddress ? first : secondIsAddress ? second : connectedAddress
+  ) as `0x${string}`
+  const typedDataInput = firstIsAddress
+    ? second
+    : secondIsAddress
+      ? first
+      : second
+
+  if (getAddress(address) !== getAddress(connectedAddress)) {
+    throw new Error(
+      `Organigram Wallet cannot sign typed data for ${getAddress(address)} while connected as ${getAddress(connectedAddress)}.`
+    )
+  }
+
+  return {
+    address: getAddress(address),
+    typedData: parsePasskeyWalletTypedData(typedDataInput)
+  }
+}
+
+const normalizeTransactionRequest = (
+  value: unknown,
+  connectedAddress: `0x${string}`
+): PasskeyWalletTransaction => {
+  if (typeof value !== 'object' || value == null) {
+    throw new Error('Organigram Wallet expected a transaction object.')
+  }
+  const transaction = value as Record<string, unknown>
+  const from =
+    transaction.from == null ? connectedAddress : String(transaction.from)
+  const to = String(transaction.to ?? '')
+  if (
+    !isAddress(from) ||
+    getAddress(from) !== getAddress(connectedAddress) ||
+    !isAddress(to)
+  ) {
+    throw new Error(
+      'Organigram Wallet transaction account or destination is invalid.'
+    )
+  }
+  const result: PasskeyWalletTransaction = {
+    from: getAddress(from),
+    to: getAddress(to)
+  }
+  for (const key of [
+    'data',
+    'value',
+    'gas',
+    'gasPrice',
+    'maxFeePerGas',
+    'maxPriorityFeePerGas',
+    'nonce'
+  ] as const) {
+    const field = transaction[key]
+    if (field == null) continue
+    if (typeof field !== 'string' || !isHex(field)) {
+      throw new Error(
+        `Organigram Wallet transaction ${key} must be hexadecimal.`
+      )
+    }
+    result[key] = field
+  }
+  return result
 }
 
 const createRemotePopupTransport = (walletOrigin?: string) => {
@@ -277,6 +409,8 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
     chainId,
     address,
     message,
+    typedData,
+    transaction,
     timeoutMs = 5 * 60 * 1000
   }: {
     type: PasskeyWalletRemoteRequestType
@@ -284,18 +418,45 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
     chainId: number
     address?: `0x${string}`
     message?: string
+    typedData?: PasskeyWalletTypedData
+    transaction?: PasskeyWalletTransaction
     timeoutMs?: number
   }): Promise<TResult> => {
     const requestId = createRequestId()
-    const popupUrl = buildPasskeyWalletRemotePopupUrl({
+    const approval = consumeOrganigramWalletApprovalSequence()
+    const configuredPopupUrl = buildPasskeyWalletRemotePopupUrl({
       walletOrigin,
       type,
       requestId,
       chainId,
-      ...(address == null ? {} : { address }),
-      ...(message == null ? {} : { message })
+      ...approval,
+      ...(address == null ? {} : { address })
     })
-    const expectedOrigin = popupUrl.origin
+    const configuredOrigin = configuredPopupUrl.origin
+    const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin)
+    const popupUrl = toPreferredWalletUrl(configuredPopupUrl)
+    const requestPayload =
+      address != null &&
+      (message != null || typedData != null || transaction != null)
+        ? {
+            type: passkeyWalletRemoteRequestPayloadType,
+            version: 1 as const,
+            request: {
+              type,
+              version: 1 as const,
+              requestId,
+              appOrigin: popupUrl.searchParams.get('appOrigin') ?? '',
+              domain: popupUrl.searchParams.get('domain') ?? '',
+              chainId,
+              requestedAt: popupUrl.searchParams.get('requestedAt') ?? '',
+              address,
+              ...approval,
+              ...(message == null ? {} : { message }),
+              ...(typedData == null ? {} : { typedData }),
+              ...(transaction == null ? {} : { transaction })
+            }
+          }
+        : null
     clearCloseTimer()
 
     if (popup == null || popup.closed) {
@@ -313,21 +474,53 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
       throw new Error('Unable to open Organigram Wallet popup.')
     }
 
+    const openedPopup = popup
     return await new Promise((resolve, reject) => {
+      const stopWatchingLocalWallet = watchLocalWalletPopup({
+        popup: openedPopup,
+        popupUrl,
+        walletOrigin: configuredOrigin,
+        requestId
+      })
       const timeout = window.setTimeout(() => {
         cleanup()
         closePopup()
         reject(new Error('Organigram Wallet request timed out.'))
       }, timeoutMs)
+      const payloadTimer =
+        requestPayload == null
+          ? null
+          : window.setInterval(() => {
+              postToWalletPopup(openedPopup, requestPayload, configuredOrigin)
+            }, 250)
 
       const cleanup = (): void => {
         window.clearTimeout(timeout)
+        if (payloadTimer != null) window.clearInterval(payloadTimer)
+        stopWatchingLocalWallet()
         window.removeEventListener('message', handleMessage)
       }
 
+      if (requestPayload != null) {
+        postToWalletPopup(openedPopup, requestPayload, configuredOrigin)
+      }
+
       function handleMessage(event: MessageEvent): void {
-        if (event.origin !== expectedOrigin) return
+        if (!acceptedOrigins.includes(event.origin)) return
         const data = event.data as Partial<PasskeyWalletRemoteResult> | null
+        if (
+          data != null &&
+          data.type === passkeyWalletRemoteErrorResultType &&
+          data.version === 1 &&
+          data.requestId === requestId &&
+          data.chainId === chainId &&
+          typeof data.error === 'string'
+        ) {
+          cleanup()
+          closePopup()
+          reject(new Error(data.error))
+          return
+        }
         if (
           data == null ||
           data.type !== expectedResultType ||
@@ -340,11 +533,17 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
         }
 
         cleanup()
-        if (type === passkeyWalletConnectType) {
+        // A following approval can reuse this user-initiated popup. The last
+        // (or standalone) approval closes it immediately.
+        if (
+          approval != null &&
+          approval.approvalStep < approval.approvalCount
+        ) {
           schedulePopupClose()
         } else {
           closePopup()
         }
+        rememberWalletOrigin(configuredOrigin, event.origin)
         resolve(data as TResult)
       }
 
@@ -367,13 +566,63 @@ const createRemotePopupTransport = (walletOrigin?: string) => {
       address: `0x${string}`
       chainId: number
       message: string
-    }) =>
-      await request<PasskeyWalletSignMessageResult>({
+    }) => {
+      const result = await request<PasskeyWalletSignMessageResult>({
         type: passkeyWalletSignMessageType,
         expectedResultType: passkeyWalletSignMessageResultType,
         chainId,
         address,
         message
+      })
+      await assertPasskeyWalletSignMessageResult({
+        result,
+        address,
+        chainId,
+        message
+      })
+
+      return result
+    },
+    signTypedData: async ({
+      address,
+      chainId,
+      typedData
+    }: {
+      address: `0x${string}`
+      chainId: number
+      typedData: PasskeyWalletTypedData
+    }) => {
+      const result = await request<PasskeyWalletSignTypedDataResult>({
+        type: passkeyWalletSignTypedDataType,
+        expectedResultType: passkeyWalletSignTypedDataResultType,
+        chainId,
+        address,
+        typedData
+      })
+      await assertPasskeyWalletSignTypedDataResult({
+        result,
+        address,
+        chainId,
+        typedData
+      })
+
+      return result
+    },
+    sendTransaction: async ({
+      address,
+      chainId,
+      transaction
+    }: {
+      address: `0x${string}`
+      chainId: number
+      transaction: PasskeyWalletTransaction
+    }) =>
+      await request<PasskeyWalletSendTransactionResult>({
+        type: passkeyWalletSendTransactionType,
+        expectedResultType: passkeyWalletSendTransactionResultType,
+        chainId,
+        address,
+        transaction
       })
   }
 }
@@ -383,15 +632,22 @@ const createRemotePasskeyWalletProvider = ({
   getChain,
   rpcUrl,
   switchChain,
-  requestPersonalSign
+  requestPersonalSign,
+  requestSignTypedData,
+  requestSendTransaction
 }: {
   getAddress: () => `0x${string}` | null
   getChain: () => Chain
   rpcUrl: () => string
   switchChain: (chainId: number) => Chain
   requestPersonalSign: RemoteRequestPersonalSign
+  requestSignTypedData: RemoteRequestSignTypedData
+  requestSendTransaction: RemoteRequestSendTransaction
 }): RemotePasskeyWalletProvider => {
-  const listeners = new Map<PasskeyProviderEvent, Set<PasskeyProviderListener>>()
+  const listeners = new Map<
+    PasskeyProviderEvent,
+    Set<PasskeyProviderListener>
+  >()
 
   const emit = (event: PasskeyProviderEvent, ...args: unknown[]): void => {
     listeners.get(event)?.forEach(listener => {
@@ -428,30 +684,79 @@ const createRemotePasskeyWalletProvider = ({
       }
       case 'personal_sign': {
         const address = requireConnectedAddress()
+        const message = normalizePersonalSignMessage(requestParams[0])
         const result = await requestPersonalSign({
           address,
           chainId: getChain().id,
-          message: normalizePersonalSignMessage(requestParams[0])
+          message
+        })
+        await assertPasskeyWalletSignMessageResult({
+          result,
+          address,
+          chainId: getChain().id,
+          message
         })
         return result.signature
       }
       case 'eth_sign': {
         const address = requireConnectedAddress()
+        const message = normalizePersonalSignMessage(requestParams[1])
         const result = await requestPersonalSign({
           address,
           chainId: getChain().id,
-          message: normalizePersonalSignMessage(requestParams[1])
+          message
+        })
+        await assertPasskeyWalletSignMessageResult({
+          result,
+          address,
+          chainId: getChain().id,
+          message
         })
         return result.signature
       }
       case 'eth_signTypedData':
       case 'eth_signTypedData_v3':
-      case 'eth_signTypedData_v4':
-        throw new Error('Typed data signing is not available in Organigram Wallet yet.')
-      case 'eth_sendTransaction':
-        throw new Error(
-          'Transaction signing is not available in Organigram Wallet yet.'
+      case 'eth_signTypedData_v4': {
+        const connectedAddress = requireConnectedAddress()
+        const { address, typedData } = normalizeSignTypedDataRequest(
+          requestParams,
+          connectedAddress
         )
+        const result = await requestSignTypedData({
+          address,
+          chainId: getChain().id,
+          typedData
+        })
+        await assertPasskeyWalletSignTypedDataResult({
+          result,
+          address,
+          chainId: getChain().id,
+          typedData
+        })
+        return result.signature
+      }
+      case 'eth_sendTransaction': {
+        const address = requireConnectedAddress()
+        const transaction = normalizeTransactionRequest(
+          requestParams[0],
+          address
+        )
+        const result = await requestSendTransaction({
+          address,
+          chainId: getChain().id,
+          transaction
+        })
+        if (
+          result.address.toLowerCase() !== address.toLowerCase() ||
+          result.chainId !== getChain().id ||
+          !isHex(result.transactionHash)
+        ) {
+          throw new Error(
+            'Organigram Wallet returned an invalid transaction result.'
+          )
+        }
+        return result.transactionHash
+      }
       default: {
         const response = await fetch(rpcUrl(), {
           method: 'POST',
@@ -494,12 +799,18 @@ const createRemotePasskeyWalletProvider = ({
 export const createOrganigramRemotePasskeyWallet = ({
   walletOrigin,
   requestConnect,
-  requestPersonalSign
+  requestPersonalSign,
+  requestSignTypedData,
+  requestSendTransaction
 }: CreateOrganigramRemotePasskeyWalletInput = {}): Wallet => {
   const remotePopupTransport = createRemotePopupTransport(walletOrigin)
   const connectRemote = requestConnect ?? remotePopupTransport.connect
   const signRemoteMessage =
     requestPersonalSign ?? remotePopupTransport.signMessage
+  const signRemoteTypedData =
+    requestSignTypedData ?? remotePopupTransport.signTypedData
+  const sendRemoteTransaction =
+    requestSendTransaction ?? remotePopupTransport.sendTransaction
 
   return {
     id: remoteWalletId,
@@ -543,7 +854,9 @@ export const createOrganigramRemotePasskeyWallet = ({
               })
               return activeChain
             },
-            requestPersonalSign: signRemoteMessage
+            requestPersonalSign: signRemoteMessage,
+            requestSignTypedData: signRemoteTypedData,
+            requestSendTransaction: sendRemoteTransaction
           })
 
           return provider
@@ -632,22 +945,6 @@ export const createOrganigramRemotePasskeyWallet = ({
             return formatConnectionResult(parameters?.withCapabilities)
           },
           async disconnect() {
-            const connection =
-              address == null
-                ? getOrganigramRemotePasskeyWalletConnection()
-                : {
-                    version: 1 as const,
-                    address,
-                    chainId: activeChain.id,
-                    connectedAt: new Date().toISOString()
-                  }
-            if (connection != null) {
-              notifyOrganigramRemotePasskeyWalletDisconnect({
-                walletOrigin,
-                address: connection.address,
-                chainId: connection.chainId
-              })
-            }
             address = null
             provider = null
             clearOrganigramRemotePasskeyWalletConnection()
@@ -689,7 +986,9 @@ export const createOrganigramRemotePasskeyWallet = ({
           },
           onAccountsChanged(accounts) {
             address =
-              accounts[0] == null ? null : getAddress(accounts[0] as `0x${string}`)
+              accounts[0] == null
+                ? null
+                : getAddress(accounts[0] as `0x${string}`)
             if (address == null) {
               clearOrganigramRemotePasskeyWalletConnection()
             } else {

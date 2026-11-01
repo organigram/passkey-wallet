@@ -59,7 +59,7 @@ const getDefaultStackOrigin = (): string => {
   if (
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === 'local.organigram.ai'
+    window.location.hostname === 'local.wallet.organigram.ai'
   ) {
     return 'https://localhost:3000'
   }

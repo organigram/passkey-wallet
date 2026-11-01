@@ -3,17 +3,28 @@ import { getAddress, isAddress } from 'viem'
 import {
   base64UrlToBytes,
   bytesToBase64Url,
+  derivePasskeyVaultKey,
   getCrypto,
+  hasBase64UrlByteLength,
+  isPasskeyVaultEnvelope,
   randomBytes,
   textDecoder,
   textEncoder,
-  toArrayBuffer
+  toArrayBuffer,
+  type PasskeyVaultEnvelopeData
 } from './crypto'
 import type { StoredVaultRecord } from './localVault'
 
+// A backup exposes its vault envelope, which only its own passkey can
+// decrypt, with that passkey's credential ID. The rest of the vault record
+// (account addresses, names, devices) is encrypted with a key derived from
+// the recovery phrase, so any passkey of the wallet can restore every backup
+// while Organigram learns nothing beyond the wallet address.
 export type RemoteVaultBackupRecord = {
-  version: 1
+  version: 2
   backupId: string
+  credentialId: string
+  envelope: PasskeyVaultEnvelopeData
   salt: string
   iv: string
   ciphertext: string
@@ -43,15 +54,14 @@ const isRemoteVaultBackupRecord = (
 
   const record = value as Partial<RemoteVaultBackupRecord>
   return (
-    record.version === 1 &&
+    record.version === 2 &&
     typeof record.backupId === 'string' &&
     record.backupId !== '' &&
-    typeof record.salt === 'string' &&
-    record.salt !== '' &&
-    typeof record.iv === 'string' &&
-    record.iv !== '' &&
-    typeof record.ciphertext === 'string' &&
-    record.ciphertext !== '' &&
+    hasBase64UrlByteLength(record.credentialId, length => length > 0) &&
+    isPasskeyVaultEnvelope(record.envelope) &&
+    hasBase64UrlByteLength(record.salt, length => length === 32) &&
+    hasBase64UrlByteLength(record.iv, length => length === 12) &&
+    hasBase64UrlByteLength(record.ciphertext, length => length > 16) &&
     typeof record.createdAt === 'string' &&
     record.createdAt !== ''
   )
@@ -152,48 +162,50 @@ export const createVaultBackupSignatureMessage = ({
 
 const deriveRemoteBackupKey = async ({
   address,
-  prfOutput,
+  recoveryPhrase,
   salt
 }: {
   address: `0x${string}`
-  prfOutput: Uint8Array
+  recoveryPhrase: string
   salt: Uint8Array
 }): Promise<CryptoKey> => {
-  const material = new Uint8Array([
-    ...prfOutput,
-    ...salt,
-    ...textEncoder.encode(`Organigram remote vault backup:${address.toLowerCase()}`)
-  ])
-  const digest = await getCrypto().subtle.digest('SHA-256', material)
+  const phraseBytes = textEncoder.encode(recoveryPhrase)
+  const keyMaterial = new Uint8Array(
+    await getCrypto().subtle.digest('SHA-256', phraseBytes)
+  )
+  phraseBytes.fill(0)
 
-  return getCrypto().subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, [
-    'encrypt',
-    'decrypt'
-  ])
+  try {
+    return await derivePasskeyVaultKey({
+      prfOutput: keyMaterial,
+      salt,
+      info: `organigram-passkey-wallet-remote-backup-v2:${address.toLowerCase()}`
+    })
+  } finally {
+    keyMaterial.fill(0)
+  }
 }
 
 export const createRemoteVaultBackupRecord = async ({
   address,
   record,
-  prfOutput
+  recoveryPhrase
 }: {
   address: `0x${string}`
   record: StoredVaultRecord
-  prfOutput: Uint8Array
+  recoveryPhrase: string
 }): Promise<RemoteVaultBackupRecord> => {
   const salt = randomBytes(32)
   const iv = randomBytes(12)
   const key = await deriveRemoteBackupKey({
     address,
-    prfOutput,
+    recoveryPhrase,
     salt
   })
   const plaintext = textEncoder.encode(JSON.stringify(record))
-  const ciphertext = await getCrypto().subtle.encrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
-    key,
-    plaintext
-  )
+  const ciphertext = await getCrypto()
+    .subtle.encrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, plaintext)
+    .finally(() => plaintext.fill(0))
   const backupDigest = await getCrypto().subtle.digest(
     'SHA-256',
     textEncoder.encode(
@@ -202,8 +214,10 @@ export const createRemoteVaultBackupRecord = async ({
   )
 
   return {
-    version: 1,
+    version: 2,
     backupId: bytesToBase64Url(new Uint8Array(backupDigest)),
+    credentialId: record.rawCredentialId ?? record.credentialId,
+    envelope: record.envelope,
     salt: bytesToBase64Url(salt),
     iv: bytesToBase64Url(iv),
     ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
@@ -214,25 +228,31 @@ export const createRemoteVaultBackupRecord = async ({
 export const decryptRemoteVaultBackupRecord = async ({
   address,
   backup,
-  prfOutput
+  recoveryPhrase
 }: {
   address: `0x${string}`
   backup: RemoteVaultBackupRecord
-  prfOutput: Uint8Array
+  recoveryPhrase: string
 }): Promise<StoredVaultRecord> => {
   const salt = base64UrlToBytes(backup.salt)
   const iv = base64UrlToBytes(backup.iv)
   const ciphertext = base64UrlToBytes(backup.ciphertext)
   const key = await deriveRemoteBackupKey({
     address,
-    prfOutput,
+    recoveryPhrase,
     salt
   })
-  const plaintext = await getCrypto().subtle.decrypt(
-    { name: 'AES-GCM', iv: toArrayBuffer(iv) },
-    key,
-    toArrayBuffer(ciphertext)
+  const plaintext = new Uint8Array(
+    await getCrypto().subtle.decrypt(
+      { name: 'AES-GCM', iv: toArrayBuffer(iv) },
+      key,
+      toArrayBuffer(ciphertext)
+    )
   )
 
-  return JSON.parse(textDecoder.decode(plaintext)) as StoredVaultRecord
+  try {
+    return JSON.parse(textDecoder.decode(plaintext)) as StoredVaultRecord
+  } finally {
+    plaintext.fill(0)
+  }
 }

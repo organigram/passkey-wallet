@@ -4,6 +4,7 @@ import {
   parseWalletEncryptionPublicKeySiweResource,
   type WalletEncryptionPublicKeySiweResource
 } from './encryption'
+import { getAcceptedWalletOrigins, officialWalletOrigin } from './walletOrigin'
 
 export type PasskeyWalletManifest = {
   version: 1
@@ -39,7 +40,6 @@ export type PasskeyWalletVerifySiweInput = {
   transportOptions?: Parameters<typeof http>[1]
 }
 
-const defaultPasskeyWalletOrigin = 'https://wallet.organigram.ai'
 const localWalletHttpsPort = '3002'
 
 const createRequestId = (): string => {
@@ -107,14 +107,17 @@ export const getPasskeyWalletCorsAllowedOrigins = ({
   allowedOrigins?: string
 }): string[] => {
   const requestOrigin = new URL(getPasskeyWalletRequestOrigin(request))
-  const localOrigins = ['localhost', '127.0.0.1', '[::1]', 'local.organigram.ai']
-    .includes(requestOrigin.hostname)
+  // A local Stack also accepts the wallet served on its own host.
+  const localOrigins = ['localhost', '127.0.0.1', '[::1]'].includes(
+    requestOrigin.hostname
+  )
     ? [`https://${requestOrigin.hostname}:${localWalletHttpsPort}`]
     : []
 
   return uniqueOrigins([
-    defaultPasskeyWalletOrigin,
-    ...(walletUrl == null ? [] : parseAllowedOrigins(walletUrl)),
+    // The official wallet, and the copy of it a user runs on their machine.
+    ...getAcceptedWalletOrigins(officialWalletOrigin),
+    ...(walletUrl == null ? [] : parseAllowedOrigins(walletUrl).flatMap(getAcceptedWalletOrigins)),
     ...parseAllowedOrigins(allowedOrigins),
     ...localOrigins
   ])

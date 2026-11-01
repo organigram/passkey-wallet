@@ -2,19 +2,10 @@ import { getAddress } from 'viem';
 import { english, generateMnemonic, mnemonicToAccount } from 'viem/accounts';
 import { createWalletEncryptionKeyPair, parseWalletEncryptionKeyPair } from './encryption';
 import { base64UrlToBytes, bytesToBase64Url, decryptPasskeyVaultSecret, derivePasskeyVaultKey, encryptPasskeyVaultSecret, randomBytes, textEncoder, toArrayBuffer } from './crypto';
-import { inferPasskeyRpId as inferRpIdFromHostname } from './rpId';
-const unlockedPasskeyWalletTtlMs = 15 * 60 * 1000;
 const bufferSourceToBytes = (value) => value instanceof ArrayBuffer
     ? new Uint8Array(value)
     : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
 const createChallenge = () => randomBytes(32);
-const getPasskeyPrfInput = () => toArrayBuffer(new Uint8Array(32));
-const createPasskeyPrfInputsByCredential = (records) => Object.fromEntries(records.map(record => [
-    record.rawCredentialId ?? record.credentialId,
-    {
-        first: getPasskeyPrfInput()
-    }
-]));
 export const createBrowserPasskeyWalletVaultPayload = async (recoveryPhrase) => {
     return {
         version: 1,
@@ -50,7 +41,13 @@ const getPrfOutput = (credential) => {
     if (first == null) {
         throw new Error('This passkey did not return a PRF output.');
     }
-    return bufferSourceToBytes(first);
+    // A copy that callers own and zero once the vault key is derived.
+    const prfOutput = new Uint8Array(bufferSourceToBytes(first));
+    if (prfOutput.byteLength !== 32) {
+        prfOutput.fill(0);
+        throw new Error('This passkey returned an invalid PRF output.');
+    }
+    return prfOutput;
 };
 const getCredentialId = (credential) => credential.id !== ''
     ? credential.id
@@ -64,7 +61,9 @@ const getCredentialTransports = (credential) => {
 };
 const getCurrentPasskeyDevice = (transports) => {
     const transportSet = new Set(transports);
-    if (transportSet.has('usb') || transportSet.has('nfc') || transportSet.has('ble')) {
+    if (transportSet.has('usb') ||
+        transportSet.has('nfc') ||
+        transportSet.has('ble')) {
         return {
             kind: 'security-key',
             label: 'Security key'
@@ -132,7 +131,24 @@ const getCurrentPasskeyDevice = (transports) => {
         label: 'Passkey'
     };
 };
+// Zeroes the PRF output once the vault key is derived.
+const encryptVaultPayloadWithPrfOutput = async ({ prfOutput, prfSalt, vaultPayload }) => {
+    try {
+        const salt = randomBytes(32);
+        const key = await derivePasskeyVaultKey({ prfOutput, salt });
+        return await encryptPasskeyVaultSecret({
+            plaintext: JSON.stringify(vaultPayload),
+            key,
+            salt,
+            prfSalt
+        });
+    }
+    finally {
+        prfOutput.fill(0);
+    }
+};
 const createPasskeyVaultRecord = async ({ accounts, name, rpId, rpName, vaultPayload }) => {
+    const prfSalt = randomBytes(32);
     const primaryAccount = accounts[0];
     if (primaryAccount == null) {
         throw new Error('A passkey vault record requires at least one account.');
@@ -163,22 +179,16 @@ const createPasskeyVaultRecord = async ({ accounts, name, rpId, rpName, vaultPay
             extensions: {
                 prf: {
                     eval: {
-                        first: getPasskeyPrfInput()
+                        first: toArrayBuffer(prfSalt)
                     }
                 }
             }
         }
     }));
-    const prfOutput = getPrfOutput(credential);
-    const salt = randomBytes(32);
-    const key = await derivePasskeyVaultKey({
-        prfOutput,
-        salt
-    });
-    const envelope = await encryptPasskeyVaultSecret({
-        plaintext: JSON.stringify(vaultPayload),
-        key,
-        salt
+    const envelope = await encryptVaultPayloadWithPrfOutput({
+        prfOutput: getPrfOutput(credential),
+        prfSalt,
+        vaultPayload
     });
     const credentialId = getCredentialId(credential);
     const rawCredentialId = getRawCredentialId(credential);
@@ -197,7 +207,6 @@ const createPasskeyVaultRecord = async ({ accounts, name, rpId, rpName, vaultPay
         envelope
     };
 };
-export const inferPasskeyRpId = (hostname = window.location.hostname) => inferRpIdFromHostname(hostname);
 export const createGeneratedRecoveryPhrase = () => generateMnemonic(english, 128);
 export const getDerivationPath = (addressIndex) => `m/44'/60'/0'/0/${addressIndex}`;
 export const deriveStoredVaultAccount = ({ recoveryPhrase, addressIndex, name }) => {
@@ -218,8 +227,7 @@ const createUnlockedWallet = ({ vaultAccount, credentialId, vaultPayload }) => {
         account,
         recoveryPhrase: vaultPayload.recoveryPhrase,
         walletEncryptionKey: vaultPayload.walletEncryptionKey,
-        credentialId,
-        expiresAt: Date.now() + unlockedPasskeyWalletTtlMs
+        credentialId
     };
 };
 export const derivePasskeyWalletAccount = ({ wallet, account }) => {
@@ -235,7 +243,7 @@ export const derivePasskeyWalletAccount = ({ wallet, account }) => {
         account: derivedAccount
     };
 };
-export const registerBrowserPasskeyVault = async ({ recoveryPhrase, name, rpId = inferPasskeyRpId(), rpName = 'Organigram Passkey Wallet' }) => {
+export const registerBrowserPasskeyVault = async ({ recoveryPhrase, name, rpId = window.location.hostname, rpName = 'Organigram Passkey Wallet' }) => {
     if (window.PublicKeyCredential == null) {
         throw new Error('Passkeys are not available in this browser.');
     }
@@ -262,7 +270,7 @@ export const registerBrowserPasskeyVault = async ({ recoveryPhrase, name, rpId =
         })
     };
 };
-export const registerAdditionalBrowserPasskeyVault = async ({ wallet, name, accounts, rpId = inferPasskeyRpId(), rpName = 'Organigram Passkey Wallet' }) => {
+export const registerAdditionalBrowserPasskeyVault = async ({ wallet, name, accounts, rpId = window.location.hostname, rpName = 'Organigram Passkey Wallet' }) => {
     if (window.PublicKeyCredential == null) {
         throw new Error('Passkeys are not available in this browser.');
     }
@@ -282,90 +290,125 @@ export const registerAdditionalBrowserPasskeyVault = async ({ wallet, name, acco
         record,
         wallet: {
             ...wallet,
-            credentialId: record.credentialId,
-            expiresAt: Date.now() + unlockedPasskeyWalletTtlMs
+            credentialId: record.credentialId
         }
     };
 };
-export const unlockBrowserPasskeyVault = async ({ records, rpId = inferPasskeyRpId() }) => {
-    if (records.length === 0) {
-        throw new Error('No encrypted vault record is available.');
+/**
+ * Runs one user-verified assertion restricted to the given passkeys, each
+ * evaluated with its own PRF salt, and returns the PRF output of the passkey
+ * the person selected. The caller owns the returned PRF output and must zero
+ * it once its key is derived.
+ */
+export const requestPasskeyPrfOutput = async ({ credentials, rpId = window.location.hostname }) => {
+    if (window.PublicKeyCredential == null) {
+        throw new Error('Passkeys are not available in this browser.');
+    }
+    if (credentials.length === 0) {
+        throw new Error('No passkey is available for this request.');
     }
     const credential = requirePasskeyCredential(await navigator.credentials.get({
         publicKey: {
             rpId,
             challenge: toArrayBuffer(createChallenge()),
-            allowCredentials: records.map(record => ({
+            allowCredentials: credentials.map(({ credentialId, transports }) => ({
                 type: 'public-key',
-                id: toArrayBuffer(base64UrlToBytes(record.rawCredentialId ?? record.credentialId)),
-                transports: record.transports
+                id: toArrayBuffer(base64UrlToBytes(credentialId)),
+                transports: transports
             })),
             userVerification: 'required',
             timeout: 90_000,
             extensions: {
                 prf: {
-                    evalByCredential: createPasskeyPrfInputsByCredential(records)
+                    evalByCredential: Object.fromEntries(credentials.map(({ credentialId, prfSalt }) => [
+                        credentialId,
+                        { first: toArrayBuffer(base64UrlToBytes(prfSalt)) }
+                    ]))
                 }
             }
         }
     }));
-    const selectedCredentialIds = new Set([
-        getCredentialId(credential),
-        getRawCredentialId(credential)
-    ]);
-    const candidateRecords = records.filter(record => selectedCredentialIds.has(record.credentialId) ||
-        (record.rawCredentialId != null &&
-            selectedCredentialIds.has(record.rawCredentialId)));
-    const recordsToTry = candidateRecords.length > 0 ? candidateRecords : records;
-    const prfOutput = getPrfOutput(credential);
-    for (const record of recordsToTry) {
-        try {
-            const key = await derivePasskeyVaultKey({
-                prfOutput,
-                salt: base64UrlToBytes(record.envelope.salt)
-            });
-            const plaintext = await decryptPasskeyVaultSecret({
-                envelope: record.envelope,
-                key
-            });
-            const vaultPayload = parseBrowserPasskeyWalletVaultPayload(plaintext);
-            const wallet = createUnlockedWallet({
-                vaultAccount: record.accounts[0],
-                credentialId: record.credentialId,
-                vaultPayload
-            });
-            if (wallet.account.address.toLowerCase() !==
-                record.accounts[0].address.toLowerCase()) {
-                throw new Error('Encrypted vault does not match the registered address.');
+    return {
+        credentialId: getRawCredentialId(credential),
+        prfOutput: getPrfOutput(credential)
+    };
+};
+// Does not zero the PRF output: the caller may try several envelopes with it.
+export const decryptVaultPayloadWithPrfOutput = async ({ envelope, prfOutput }) => parseBrowserPasskeyWalletVaultPayload(await decryptPasskeyVaultSecret({
+    envelope,
+    key: await derivePasskeyVaultKey({
+        prfOutput,
+        salt: base64UrlToBytes(envelope.salt)
+    })
+}));
+const getRecordRawCredentialId = (record) => record.rawCredentialId ?? record.credentialId;
+// Returns the PRF output with the unlocked wallet; the caller must zero it.
+const unlockWithPrfOutput = async ({ records, rpId }) => {
+    if (records.length === 0) {
+        throw new Error('No encrypted vault record is available.');
+    }
+    const { credentialId, prfOutput } = await requestPasskeyPrfOutput({
+        rpId,
+        credentials: records.map(record => ({
+            credentialId: getRecordRawCredentialId(record),
+            transports: record.transports,
+            prfSalt: record.envelope.prfSalt
+        }))
+    });
+    try {
+        // Only the vaults of the passkey that answered can be keyed by its PRF
+        // output.
+        for (const record of records.filter(candidate => getRecordRawCredentialId(candidate) === credentialId)) {
+            try {
+                const vaultPayload = await decryptVaultPayloadWithPrfOutput({
+                    envelope: record.envelope,
+                    prfOutput
+                });
+                const wallet = createUnlockedWallet({
+                    vaultAccount: record.accounts[0],
+                    credentialId: record.credentialId,
+                    vaultPayload
+                });
+                if (wallet.account.address.toLowerCase() !==
+                    record.accounts[0].address.toLowerCase()) {
+                    throw new Error('Encrypted vault does not match the registered address.');
+                }
+                return {
+                    record,
+                    wallet,
+                    prfOutput
+                };
             }
-            return {
-                record,
-                wallet,
-                prfOutput
-            };
-        }
-        catch {
-            // Try the next matching encrypted vault.
+            catch {
+                // Try the next vault of the same passkey.
+            }
         }
     }
+    catch (error) {
+        prfOutput.fill(0);
+        throw error;
+    }
+    prfOutput.fill(0);
     throw new Error('Unable to decrypt passkey wallet.');
 };
-export const updateStaticPasskeyVaultEncryptionKey = async ({ records, walletEncryptionKey, rpId = inferPasskeyRpId() }) => {
-    const result = await unlockBrowserPasskeyVault({ records, rpId });
+export const unlockBrowserPasskeyVault = async ({ records, rpId = window.location.hostname }) => {
+    const { prfOutput, ...result } = await unlockWithPrfOutput({ records, rpId });
+    prfOutput.fill(0);
+    return result;
+};
+export const updateStaticPasskeyVaultEncryptionKey = async ({ records, walletEncryptionKey, rpId = window.location.hostname }) => {
+    const result = await unlockWithPrfOutput({ records, rpId });
     const vaultPayload = {
         version: 1,
         recoveryPhrase: result.wallet.recoveryPhrase,
         walletEncryptionKey
     };
-    const salt = randomBytes(32);
-    const key = await derivePasskeyVaultKey({
+    // The PRF output was evaluated with this vault's PRF salt, so the salt is
+    // kept for the re-encrypted vault.
+    const envelope = await encryptVaultPayloadWithPrfOutput({
         prfOutput: result.prfOutput,
-        salt
-    });
-    const envelope = await encryptPasskeyVaultSecret({
-        plaintext: JSON.stringify(vaultPayload),
-        key,
-        salt
+        prfSalt: base64UrlToBytes(result.record.envelope.prfSalt),
+        vaultPayload
     });
     const record = {
         ...result.record,
@@ -381,30 +424,10 @@ export const updateStaticPasskeyVaultEncryptionKey = async ({ records, walletEnc
         })
     };
 };
-export const getDiscoverablePasskeyPrfOutput = async ({ rpId = inferPasskeyRpId() } = {}) => {
-    if (window.PublicKeyCredential == null) {
-        throw new Error('Passkeys are not available in this browser.');
-    }
-    const credential = requirePasskeyCredential(await navigator.credentials.get({
-        publicKey: {
-            rpId,
-            challenge: toArrayBuffer(createChallenge()),
-            userVerification: 'required',
-            timeout: 90_000,
-            extensions: {
-                prf: {
-                    eval: {
-                        first: getPasskeyPrfInput()
-                    }
-                }
-            }
-        }
-    }));
-    return getPrfOutput(credential);
-};
 export const signPersonalMessage = async ({ wallet, message }) => await wallet.account.signMessage({
     message
 });
+export const signTypedDataMessage = async ({ wallet, typedData }) => await wallet.account.signTypedData(typedData);
 export const hexEncodeMessage = (message) => `0x${Array.from(textEncoder.encode(message))
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('')}`;

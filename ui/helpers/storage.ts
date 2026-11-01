@@ -1,5 +1,6 @@
 import {
   addAccountToVaultRecords,
+  isStoredVaultRecord,
   markVaultRecordUsed,
   parseVaultRegistry,
   removeAccountFromVaultRecords,
@@ -17,17 +18,48 @@ export type { StoredVaultAccount, StoredVaultRecord, VaultRegistry }
 export { parseVaultRegistry, vaultHasAccount }
 
 const storageKey = 'passkey-wallet.vaults.v1'
+// Vault records this version cannot read, such as version 1 vaults, are kept
+// here untouched instead of being dropped by the next save, so that a later
+// version can still recover them. Records are only ever appended.
+export const archivedVaultsStorageKey = 'passkey-wallet.vaults.archive'
 
 export const defaultStaticVaultRegistry: VaultRegistry = {
   version: 1,
   vaults: []
 }
 
+const archiveUnreadableVaults = (registry: unknown): void => {
+  const vaults = (registry as { vaults?: unknown } | null)?.vaults
+  if (!Array.isArray(vaults)) return
+  const unreadable = vaults.filter(vault => !isStoredVaultRecord(vault))
+  if (unreadable.length === 0) return
+
+  let archived: unknown[]
+  try {
+    const raw = window.localStorage.getItem(archivedVaultsStorageKey)
+    archived = raw == null || raw === '' ? [] : (JSON.parse(raw) as unknown[])
+    if (!Array.isArray(archived)) return
+  } catch {
+    // Never overwrite an archive that cannot be read back.
+    return
+  }
+  const known = new Set(archived.map(vault => JSON.stringify(vault)))
+  const additions = unreadable.filter(vault => !known.has(JSON.stringify(vault)))
+  if (additions.length === 0) return
+
+  window.localStorage.setItem(
+    archivedVaultsStorageKey,
+    JSON.stringify([...archived, ...additions])
+  )
+}
+
 export const loadLocalVaults = (): StoredVaultRecord[] => {
   const raw = window.localStorage.getItem(storageKey)
   if (raw == null || raw === '') return []
 
-  return parseVaultRegistry(JSON.parse(raw)).vaults
+  const registry: unknown = JSON.parse(raw)
+  archiveUnreadableVaults(registry)
+  return parseVaultRegistry(registry).vaults
 }
 
 export const saveLocalVaults = (vaults: StoredVaultRecord[]): void => {

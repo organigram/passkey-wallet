@@ -36,6 +36,22 @@ export type WalletEncryptedFilePackage = {
   encryptedAt: string
 }
 
+export type WalletEncryptedPayload = {
+  version: 1
+  kind: 'organigram:wallet-encrypted-payload'
+  algorithm: 'ECDH-P256+A256GCM'
+  /** Only this application origin may have the payload decrypted. */
+  appOrigin: string
+  recipient: {
+    address: `0x${string}`
+    publicKey: JsonWebKey
+    keyVersion: number
+  }
+  iv: string
+  ciphertext: string
+  encryptedAt: string
+}
+
 export type WalletDecryptedFile = {
   name: string
   type: string
@@ -241,6 +257,72 @@ export const encryptFileWithWalletEncryptionKey = async ({
   }
 }
 
+// Authenticates the application origin and recipient with the ciphertext, so a
+// payload cannot be decrypted for another application or relabelled for it.
+const getEncryptedPayloadAdditionalData = ({
+  appOrigin,
+  address,
+  keyVersion
+}: {
+  appOrigin: string
+  address: string
+  keyVersion: number
+}): ArrayBuffer =>
+  toArrayBuffer(
+    textEncoder.encode(
+      JSON.stringify([
+        'organigram:wallet-encrypted-payload',
+        appOrigin,
+        address.toLowerCase(),
+        keyVersion
+      ])
+    )
+  )
+
+export const encryptPayloadWithWalletEncryptionKey = async ({
+  address,
+  appOrigin,
+  plaintext,
+  keyPair
+}: {
+  address: `0x${string}`
+  appOrigin: string
+  plaintext: string
+  keyPair: WalletEncryptionKeyPairPayload
+}): Promise<WalletEncryptedPayload> => {
+  const normalizedAppOrigin = new URL(appOrigin).origin
+  const key = await deriveSelfEncryptionKey(keyPair)
+  const iv = getRandomIv()
+  const ciphertext = await getCrypto().subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      additionalData: getEncryptedPayloadAdditionalData({
+        appOrigin: normalizedAppOrigin,
+        address,
+        keyVersion: keyPair.keyVersion
+      })
+    },
+    key,
+    textEncoder.encode(plaintext)
+  )
+
+  return {
+    version: 1,
+    kind: 'organigram:wallet-encrypted-payload',
+    algorithm: 'ECDH-P256+A256GCM',
+    appOrigin: normalizedAppOrigin,
+    recipient: {
+      address,
+      publicKey: keyPair.publicKey,
+      keyVersion: keyPair.keyVersion
+    },
+    iv: bytesToBase64Url(iv),
+    ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
+    encryptedAt: new Date().toISOString()
+  }
+}
+
 export const parseWalletEncryptedFilePackage = (
   value: unknown
 ): WalletEncryptedFilePackage => {
@@ -291,6 +373,44 @@ export const parseWalletEncryptedFilePackage = (
   }
 }
 
+export const parseWalletEncryptedPayload = (
+  value: unknown
+): WalletEncryptedPayload => {
+  if (!isPlainObject(value) || !isPlainObject(value.recipient)) {
+    throw new Error('Encrypted payload must be an object.')
+  }
+  if (
+    value.version !== 1 ||
+    value.kind !== 'organigram:wallet-encrypted-payload' ||
+    value.algorithm !== 'ECDH-P256+A256GCM' ||
+    typeof value.appOrigin !== 'string' ||
+    typeof value.recipient.address !== 'string' ||
+    !/^0x[a-fA-F0-9]{40}$/.test(value.recipient.address) ||
+    !isJsonWebKey(value.recipient.publicKey) ||
+    typeof value.recipient.keyVersion !== 'number' ||
+    typeof value.iv !== 'string' ||
+    typeof value.ciphertext !== 'string' ||
+    typeof value.encryptedAt !== 'string'
+  ) {
+    throw new Error('Unsupported encrypted payload.')
+  }
+
+  return {
+    version: 1,
+    kind: 'organigram:wallet-encrypted-payload',
+    algorithm: 'ECDH-P256+A256GCM',
+    appOrigin: value.appOrigin,
+    recipient: {
+      address: value.recipient.address as `0x${string}`,
+      publicKey: value.recipient.publicKey,
+      keyVersion: value.recipient.keyVersion
+    },
+    iv: value.iv,
+    ciphertext: value.ciphertext,
+    encryptedAt: value.encryptedAt
+  }
+}
+
 export const decryptFileWithWalletEncryptionKey = async ({
   encryptedPackage,
   keyPair
@@ -320,4 +440,36 @@ export const decryptFileWithWalletEncryptionKey = async ({
       ? {}
       : { lastModified: encryptedPackage.file.lastModified })
   }
+}
+
+export const decryptPayloadWithWalletEncryptionKey = async ({
+  encryptedPayload,
+  appOrigin,
+  keyPair
+}: {
+  encryptedPayload: WalletEncryptedPayload
+  appOrigin: string
+  keyPair: WalletEncryptionKeyPairPayload
+}): Promise<string> => {
+  if (encryptedPayload.recipient.keyVersion !== keyPair.keyVersion) {
+    throw new Error('Encrypted payload was created for another wallet encryption key.')
+  }
+  if (new URL(appOrigin).origin !== encryptedPayload.appOrigin) {
+    throw new Error('Encrypted payload was created for another application.')
+  }
+  const key = await deriveSelfEncryptionKey(keyPair)
+  const plaintext = await getCrypto().subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(base64UrlToBytes(encryptedPayload.iv)),
+      additionalData: getEncryptedPayloadAdditionalData({
+        appOrigin: encryptedPayload.appOrigin,
+        address: encryptedPayload.recipient.address,
+        keyVersion: encryptedPayload.recipient.keyVersion
+      })
+    },
+    key,
+    toArrayBuffer(base64UrlToBytes(encryptedPayload.ciphertext))
+  )
+  return textDecoder.decode(plaintext)
 }

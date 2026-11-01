@@ -1,6 +1,10 @@
 import {
   passkeyWalletConnectType,
-  passkeyWalletSignMessageType
+  passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadType
 } from '@organigram/passkey-wallet/remote-protocol'
 import { useState } from 'react'
 import { useWalletApp } from './Context'
@@ -21,7 +25,7 @@ export const WalletRequestPanel = (): JSX.Element | null => {
   } = useWalletApp()
   const pendingRequestRequiredAddress =
     pendingRequest?.kind === 'remote' &&
-    pendingRequest.request.type === passkeyWalletSignMessageType
+    'address' in pendingRequest.request
       ? pendingRequest.request.address
       : null
   const requestAccountSelector =
@@ -132,7 +136,15 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                 <dd>
                   {pendingRequest.request.type === passkeyWalletConnectType
                     ? 'Connect wallet'
-                    : 'Sign message'}
+                    : pendingRequest.request.type === passkeyWalletSendTransactionType
+                      ? 'Send transaction'
+                      : pendingRequest.request.type === passkeyWalletSignTypedDataType
+                        ? 'Sign typed data'
+                        : pendingRequest.request.type === passkeyWalletEncryptPayloadType
+                          ? 'Encrypt recovery data'
+                          : pendingRequest.request.type === passkeyWalletDecryptPayloadType
+                            ? 'Decrypt recovery data'
+                            : 'Sign message'}
                 </dd>
               </div>
               <div>
@@ -159,6 +171,27 @@ export const WalletRequestPanel = (): JSX.Element | null => {
                   )
                 })()
               : null}
+            {pendingRequest.request.type === passkeyWalletEncryptPayloadType ||
+            pendingRequest.request.type === passkeyWalletDecryptPayloadType ? (
+              // The payload itself is a secret: describe its effect instead of
+              // displaying it.
+              <div className='request-message-detail'>
+                <dt>Effect</dt>
+                <dd>
+                  {pendingRequest.request.type === passkeyWalletEncryptPayloadType
+                    ? `${pendingRequest.request.domain} will receive data encrypted with this wallet's key. Only this wallet can decrypt it again, and only for ${pendingRequest.request.domain}.`
+                    : `${pendingRequest.request.domain} will receive data decrypted with this wallet's key. Approve only if you started this recovery on ${pendingRequest.request.domain}.`}
+                </dd>
+              </div>
+            ) : null}
+            {pendingRequest.request.type === passkeyWalletSendTransactionType ? (
+              <div className='request-message-detail'>
+                <dt>Transaction</dt>
+                <dd className='request-message-body'>
+                  <pre>{JSON.stringify(pendingRequest.request.transaction, null, 2)}</pre>
+                </dd>
+              </div>
+            ) : null}
           </dl>
         )}
         {requestAccountSelector}

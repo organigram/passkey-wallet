@@ -167,6 +167,15 @@ const readRpcUrlTemplate = (profile, fallback) => {
   return value
 }
 
+const readPasskeyRpId = (profile, fallback) => {
+  const value = readString(profile, 'PASSKEY_RP_ID', fallback ?? '').toLowerCase()
+  if (value !== '' && !/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(value)) {
+    throw new Error('PASSKEY_WALLET_PASSKEY_RP_ID must be a hostname.')
+  }
+
+  return value
+}
+
 const readColor = (profile, key, fallback) => {
   const value = readString(profile, key, fallback)
   if (!/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))$/.test(value)) {
@@ -194,6 +203,12 @@ const createRuntimeConfig = (currentConfig, profile) => ({
     profile,
     'STACK_ORIGIN',
     currentConfig.stackOrigin
+  ),
+  passkeyRpId: readPasskeyRpId(profile, currentConfig.passkeyRpId),
+  localWalletOrigin: readHttpsOrigin(
+    profile,
+    'LOCAL_WALLET_ORIGIN',
+    currentConfig.localWalletOrigin ?? ''
   ),
   defaultChainId: readPositiveInteger(
     profile,

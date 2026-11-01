@@ -8,7 +8,6 @@ export type UnlockedPasskeyWallet = {
     recoveryPhrase: string;
     walletEncryptionKey?: WalletEncryptionKeyPairPayload;
     credentialId: string;
-    expiresAt: number;
 };
 export type PasskeyRegistrationResult = {
     address: `0x${string}`;

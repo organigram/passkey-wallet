@@ -6,7 +6,8 @@ import { join, relative, sep } from 'node:path'
 const parseArgs = args => {
   const options = {
     distDir: 'app-dist',
-    manifestPath: ''
+    manifestPath: '',
+    url: ''
   }
 
   for (let index = 0; index < args.length; index += 1) {
@@ -15,6 +16,12 @@ const parseArgs = args => {
     if (arg === '--dist') {
       if (next == null) throw new Error('--dist requires a path.')
       options.distDir = next
+      index += 1
+      continue
+    }
+    if (arg === '--url') {
+      if (next == null) throw new Error('--url requires a wallet URL.')
+      options.url = next
       index += 1
       continue
     }
@@ -28,8 +35,8 @@ const parseArgs = args => {
     throw new Error(`Unknown argument: ${arg}`)
   }
 
-  if (options.manifestPath === '') {
-    throw new Error('--manifest is required.')
+  if (options.manifestPath === '' && options.url === '') {
+    throw new Error('--manifest is required unless --url is given.')
   }
 
   return options
@@ -68,11 +75,102 @@ const collectFiles = async directory => {
   return files
 }
 
+// Release manifests are published on the public repository, independently of
+// the host serving the wallet.
+const releasesUrl =
+  'https://api.github.com/repos/organigram/passkey-wallet/releases?per_page=30'
+
+const fetchBytes = async (url, redirect = 'follow') => {
+  const response = await fetch(url, { cache: 'no-store', redirect })
+  if (!response.ok) {
+    throw new Error(`GET ${url} failed with ${response.status}.`)
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}
+
+// Selects the published release whose index.html is the one being served.
+// index.html loads every other code file, so it identifies the release.
+const findReleaseManifest = async indexSha256 => {
+  const response = await fetch(releasesUrl, {
+    headers: { accept: 'application/vnd.github+json' }
+  })
+  if (!response.ok) {
+    throw new Error(`Unable to list releases (${response.status}).`)
+  }
+
+  for (const release of await response.json()) {
+    for (const asset of release.assets ?? []) {
+      if (!asset.name.endsWith('.manifest.json')) continue
+
+      const manifest = JSON.parse(
+        (await fetchBytes(asset.browser_download_url)).toString('utf8')
+      )
+      if (
+        manifest.files?.some(
+          file => file.path === 'index.html' && file.sha256 === indexSha256
+        )
+      ) {
+        return { manifest, releaseUrl: release.html_url }
+      }
+    }
+  }
+
+  throw new Error('No published release matches the served index.html.')
+}
+
+// Every file of the release must be served unchanged, the runtime config
+// included: it sets the passkey RP ID, the Stack origin and the RPC URLs.
+const verifyDeployment = async options => {
+  const origin = new URL(options.url).origin
+  const failures = []
+  const fetchServed = async path =>
+    await fetchBytes(new URL(path, origin), 'error')
+  const indexSha256 = sha256(await fetchServed('/'))
+  for (const route of ['/index.html', '/request', '/settings']) {
+    if (sha256(await fetchServed(route)) !== indexSha256) {
+      failures.push(`${route} does not serve the same index.html as /`)
+    }
+  }
+
+  const { manifest, releaseUrl } =
+    options.manifestPath === ''
+      ? await findReleaseManifest(indexSha256)
+      : {
+          manifest: JSON.parse(await readFile(options.manifestPath, 'utf8')),
+          releaseUrl: options.manifestPath
+        }
+
+  for (const file of manifest.files) {
+    const served = await fetchServed(`/${file.path}`).catch(() => null)
+    if (served == null) {
+      failures.push(`Missing release file: ${file.path}`)
+    } else if (sha256(served) !== file.sha256) {
+      failures.push(`Hash mismatch: ${file.path}`)
+    }
+  }
+
+  if (failures.length > 0) {
+    for (const failure of failures) console.error(`FAIL ${failure}`)
+    process.exitCode = 1
+    return
+  }
+
+  console.info(
+    `${origin} serves release ${manifest.name} v${manifest.version} unchanged (${manifest.files.length} file(s)).`
+  )
+  console.info(`Reference: ${releaseUrl}`)
+}
+
 const isCodePath = path =>
   path.endsWith('.html') || path.endsWith('.js') || path.endsWith('.css')
 
 const main = async () => {
   const options = parseArgs(process.argv.slice(2))
+  if (options.url !== '') {
+    await verifyDeployment(options)
+    return
+  }
   const manifest = JSON.parse(await readFile(options.manifestPath, 'utf8'))
   const customizablePaths = new Set(manifest.customizableRuntimePaths ?? [])
   const expectedFiles = new Map(
@@ -113,7 +211,7 @@ const main = async () => {
     if (config.version !== 1) {
       failures.push('Unsupported runtime config version.')
     }
-    for (const field of ['title', 'subtitle', 'githubUrl']) {
+    for (const field of ['title', 'subtitle', 'githubUrl', 'verifyUrl']) {
       if (Object.hasOwn(config, field)) {
         failures.push(`Runtime config must not override immutable field: ${field}`)
       }

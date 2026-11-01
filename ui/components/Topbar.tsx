@@ -2,16 +2,18 @@ import { useState } from 'react'
 import { useWalletApp } from './Context'
 import { formatAddress } from '../helpers/wallet'
 import { getWalletRuntimeConfig } from '../helpers/runtimeConfig'
-import { GitHubIcon } from './Icons'
+import { CheckIcon, CopyIcon, GitHubIcon } from './Icons'
 
 const CurrentAccountMenu = (): JSX.Element | null => {
   const {
     activeAccount,
     activeVaultId,
+    setStatus,
     switchActiveAccount,
     vaultRegistryGroups
   } = useWalletApp()
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
 
   if (activeAccount == null) return null
 
@@ -22,6 +24,17 @@ const CurrentAccountMenu = (): JSX.Element | null => {
     group => group.id !== activeVaultId
   )
   const orderedVaultGroups = [...activeVaultGroups, ...inactiveVaultGroups]
+
+  const copyAddress = async (address: `0x${string}`): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopiedAddress(address)
+      setStatus('Address copied.')
+    } catch (clipboardError) {
+      console.warn('Unable to copy address:', clipboardError)
+      setStatus('Unable to copy address.')
+    }
+  }
 
   return (
     <div className='account-menu-wrap'>
@@ -75,26 +88,51 @@ const CurrentAccountMenu = (): JSX.Element | null => {
                             activeAccount.address.toLowerCase()
 
                           return (
-                            <button
-                              type='button'
+                            <div
                               className={
                                 isActive
                                   ? 'account-menu-account account-menu-account-active'
                                   : 'account-menu-account'
                               }
                               key={account.address}
-                              onClick={() => {
-                                switchActiveAccount({
-                                  account,
-                                  vaultId: vaultGroup.id
-                                })
-                                setIsAccountMenuOpen(false)
-                              }}
-                              disabled={isActive}
                             >
-                              <strong>{account.name}</strong>
-                              <small>{account.address}</small>
-                            </button>
+                              <button
+                                type='button'
+                                className='account-menu-account-button'
+                                onClick={() => {
+                                  switchActiveAccount({
+                                    account,
+                                    vaultId: vaultGroup.id
+                                  })
+                                  setIsAccountMenuOpen(false)
+                                }}
+                                disabled={isActive}
+                              >
+                                <strong>{account.name}</strong>
+                                <small>{account.address}</small>
+                              </button>
+                              <button
+                                type='button'
+                                className='account-menu-copy-button'
+                                onClick={() => { copyAddress(account.address).catch(() => undefined) }}
+                                aria-label={
+                                  copiedAddress === account.address
+                                    ? `${account.name} address copied`
+                                    : `Copy ${account.name} address`
+                                }
+                                title={
+                                  copiedAddress === account.address
+                                    ? 'Address copied'
+                                    : 'Copy address'
+                                }
+                              >
+                                {copiedAddress === account.address ? (
+                                  <CheckIcon />
+                                ) : (
+                                  <CopyIcon />
+                                )}
+                              </button>
+                            </div>
                           )
                         })}
                       </div>

@@ -1,7 +1,10 @@
+import { type PasskeyVaultEnvelopeData } from './crypto';
 import type { StoredVaultRecord } from './localVault';
 export type RemoteVaultBackupRecord = {
-    version: 1;
+    version: 2;
     backupId: string;
+    credentialId: string;
+    envelope: PasskeyVaultEnvelopeData;
     salt: string;
     iv: string;
     ciphertext: string;
@@ -25,13 +28,13 @@ export declare const createVaultBackupSignatureMessage: ({ address, vaultCount, 
     vaultCount: number;
     digest: string;
 }) => string;
-export declare const createRemoteVaultBackupRecord: ({ address, record, prfOutput }: {
+export declare const createRemoteVaultBackupRecord: ({ address, record, recoveryPhrase }: {
     address: `0x${string}`;
     record: StoredVaultRecord;
-    prfOutput: Uint8Array;
+    recoveryPhrase: string;
 }) => Promise<RemoteVaultBackupRecord>;
-export declare const decryptRemoteVaultBackupRecord: ({ address, backup, prfOutput }: {
+export declare const decryptRemoteVaultBackupRecord: ({ address, backup, recoveryPhrase }: {
     address: `0x${string}`;
     backup: RemoteVaultBackupRecord;
-    prfOutput: Uint8Array;
+    recoveryPhrase: string;
 }) => Promise<StoredVaultRecord>;

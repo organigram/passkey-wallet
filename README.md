@@ -87,6 +87,83 @@ pnpm build:artifact
 `artifacts/passkey-wallet-app-v<version>.tar.gz` with a `.sha256` checksum and
 manifest.
 
+### Local development
+
+`pnpm dev` serves the wallet at `https://localhost:3002`, behind an HTTPS proxy
+in front of Vite (port 3003). The first run creates a local certificate with
+[mkcert](https://github.com/FiloSottile/mkcert).
+
+Any other hostname can be passed as an argument (`pnpm dev my.host.test`): the
+certificate is regenerated to include it.
+
+### Run your own wallet
+
+You do not have to trust the servers of wallet.organigram.ai, nor the code they
+serve, to use your Organigram accounts. The `local-organigram` profile serves
+your own copy of the wallet, built from this source code, on your machine:
+
+```sh
+pnpm dev local-organigram
+```
+
+(or `pnpm passkey-wallet dev local-organigram` from the repository root), then
+open `https://local.wallet.organigram.ai:3002`.
+
+`local.wallet.organigram.ai` is a subdomain of `wallet.organigram.ai`, so this
+copy unlocks the same passkeys, hence the same accounts: the profile sets the
+passkey RP ID to `wallet.organigram.ai`. Its browser storage is separate, so
+restore your encrypted vault there once (see [Recoverable vaults](#recoverable-vaults)):
+your passkey then unlocks it as usual. Your keys never leave your browser, and
+signing in no longer depends on wallet.organigram.ai being online or unaltered.
+
+The name already resolves to `127.0.0.1` through public DNS, so no setup is
+needed. For a stronger guarantee, also resolve it in your hosts file: a tampered
+DNS record could otherwise send it to a server able to request the PRF output of
+your passkeys (macOS and Linux):
+
+```sh
+grep -q 'local.wallet.organigram.ai' /etc/hosts || echo '127.0.0.1 local.wallet.organigram.ai' | sudo tee -a /etc/hosts
+```
+
+To use it from any app, turn on **Settings → Your own wallet** on
+wallet.organigram.ai. Requests then go to your copy, and once it has answered,
+apps open it directly: wallet.organigram.ai is no longer loaded at all. If your
+copy stops answering, for instance because it is not running, the request goes
+back to wallet.organigram.ai after a few seconds.
+
+Apps that use this package accept the local copy of the official wallet without
+any setting, on their pages and on their wallet endpoints (sign-in challenge,
+vault backups, RPC).
+
+A wallet deployed elsewhere can offer the same to its users with its own local
+copy, served under a subdomain of its host so that it unlocks the same passkeys:
+
+- the deployment declares it with `localWalletOrigin` in
+  `passkey-wallet.config.json` (or `PASSKEY_WALLET_LOCAL_WALLET_ORIGIN` at build
+  time), for example `https://local.wallet.example.com:3002`;
+- users run it with
+  `PASSKEY_WALLET_PASSKEY_RP_ID=wallet.example.com pnpm dev local.wallet.example.com`;
+- apps accept it with `NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_LOCAL_URL`, next to
+  `NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_URL`. The value is ignored unless it is
+  an HTTPS subdomain of the wallet host.
+
+Each production build of https://wallet.organigram.ai is published as a
+release of this repository, with the SHA-256 of every served file. To check
+that the live wallet serves one of these releases unchanged, run from a clone
+of this repository:
+
+```sh
+node scripts/verify-runtime-dist.mjs --url https://wallet.organigram.ai
+```
+
+With Node.js 24 and pnpm 10.28, rebuilding a release commit reproduces its files:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run build
+node scripts/verify-runtime-dist.mjs --dist app-dist --manifest <release manifest>
+```
+
 
 ## Architecture
 
@@ -243,9 +320,25 @@ This model assumes:
 - the server verifies credential counters and user verification;
 - recovery phrase export is treated as a sensitive operation;
 - backup passkey deletion never leaves the user without a recovery method;
-- a compromised browser session can access unlocked wallet material in the milliseconds where it is
-  in memory before being automatically locked again by the wallet.
+- a compromised browser session can read unlocked wallet material while a
+  request is being processed.
 
+### Passkey scope
+
+Passkeys are created for the exact hostname serving the wallet (for example
+`wallet.organigram.ai`). Any page served under the passkey RP ID can request
+the PRF output that decrypts the vault, so no other application should be
+hosted under it. Dapps never need the wallet RP ID: they reach the wallet
+through its popup and `postMessage`.
+
+A wallet served from a subdomain can reuse the passkeys of its parent wallet
+host by setting `passkeyRpId` in `passkey-wallet.config.json` (or
+`PASSKEY_WALLET_PASSKEY_RP_ID`) to that host. The value must be the current
+hostname or one of its parent domains. `pnpm dev local-organigram` does so for
+`wallet.organigram.ai` (see [Run your own wallet](#run-your-own-wallet)).
+
+The wallet sends a `Content-Security-Policy` that forbids third-party scripts
+and any framing of the wallet origin.
 
 ## Browser Compatibility
 

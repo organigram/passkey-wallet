@@ -1,13 +1,26 @@
-import { inferPasskeyRpId } from '@organigram/passkey-wallet/browser-wallet'
-
 import { useWalletApp } from './Context'
-import { getWalletRuntimeConfig } from '../helpers/runtimeConfig'
+import { getPasskeyRpId, getWalletRuntimeConfig } from '../helpers/runtimeConfig'
+import {
+  canHandOffToLocalWallet,
+  localWalletInstructionsUrl
+} from '../helpers/localWallet'
+import { ExternalLinkIcon } from './Icons'
 import { WalletRequestPanel } from './RequestPanel'
 import { useWalletSetupPanels } from './SetupPanels'
 
 export const WalletRequestPage = (): JSX.Element => {
   const runtimeConfig = getWalletRuntimeConfig()
   const { combinedVaults, error, pendingRequest, status } = useWalletApp()
+  const approvalSequence =
+    pendingRequest?.kind === 'remote' &&
+    pendingRequest.request.approvalStep != null &&
+    pendingRequest.request.approvalCount != null
+      ? `${pendingRequest.request.approvalStep} of ${pendingRequest.request.approvalCount}${
+          pendingRequest.request.approvalLabel == null
+            ? ''
+            : ` · ${pendingRequest.request.approvalLabel}`
+        }`
+      : null
   const { accountSetupPanel } = useWalletSetupPanels()
   const shouldShowRequestSetup =
     pendingRequest != null && combinedVaults.length === 0
@@ -25,7 +38,30 @@ export const WalletRequestPage = (): JSX.Element => {
           <div className='status-panel request-status'>
             <span>Status</span>
             <strong>{status}</strong>
-            <small>RP ID: {inferPasskeyRpId() || 'not available'}</small>
+            {approvalSequence != null ? (
+              <small>Approval sequence: {approvalSequence}</small>
+            ) : null}
+            <small>RP ID: {getPasskeyRpId()}</small>
+            <small>
+              <a
+                href={runtimeConfig.verifyUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                How to verify this wallet
+              </a>
+            </small>
+            {canHandOffToLocalWallet() ? (
+              <small>
+                <a
+                  href={localWalletInstructionsUrl(runtimeConfig.githubUrl)}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                >
+                  Run this wallet on your computer, with the same accounts
+                </a>
+              </small>
+            ) : null}
           </div>
 
           {error != null ? <div className='error-banner'>{error}</div> : null}
@@ -54,28 +90,13 @@ export const WalletRequestPage = (): JSX.Element => {
             </div>
           )}
           <a
-            className='request-account-link'
+            className='external-text-link request-account-link'
             href='/settings#connections'
             target='_blank'
             rel='noopener noreferrer'
           >
             <span>Open in Passkey Wallet</span>
-            <svg
-              aria-hidden='true'
-              className='external-link-icon'
-              fill='none'
-              height='14'
-              viewBox='0 0 24 24'
-              width='14'
-            >
-              <path
-                d='M7 17 17 7M9 7h8v8'
-                stroke='currentColor'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth='2'
-              />
-            </svg>
+            <ExternalLinkIcon />
           </a>
         </div>
       </div>

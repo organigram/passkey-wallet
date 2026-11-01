@@ -12,7 +12,7 @@ const defaultCertificateHosts = [
   'localhost',
   '127.0.0.1',
   '::1',
-  'local.organigram.ai'
+  'local.wallet.organigram.ai'
 ]
 
 const parseDotEnvLine = line => {
@@ -67,9 +67,14 @@ export const getLocalHttpsConfig = (profileOrHost = 'localhost') => {
   const requestedProfile = profileOrHost.trim() || 'localhost'
   const hostFromProfile =
     requestedProfile === 'local-organigram'
-      ? 'local.organigram.ai'
+      ? 'local.wallet.organigram.ai'
       : requestedProfile
   const host = process.env.PASSKEY_WALLET_UI_HOST ?? hostFromProfile
+  // The local-organigram host is a subdomain of the production wallet: it
+  // unlocks the same passkeys, hence the same accounts.
+  const passkeyRpId =
+    process.env.PASSKEY_WALLET_PASSKEY_RP_ID ??
+    (requestedProfile === 'local-organigram' ? 'wallet.organigram.ai' : '')
   const listenHost = process.env.PASSKEY_WALLET_UI_LISTEN_HOST ?? '127.0.0.1'
   const sourcePort = Number(process.env.PASSKEY_WALLET_UI_HTTPS_PORT ?? 3002)
   const targetPort = Number(process.env.PASSKEY_WALLET_UI_VITE_PORT ?? 3003)
@@ -83,6 +88,7 @@ export const getLocalHttpsConfig = (profileOrHost = 'localhost') => {
   return {
     profile: requestedProfile,
     host,
+    passkeyRpId,
     listenHost,
     sourcePort,
     targetPort,

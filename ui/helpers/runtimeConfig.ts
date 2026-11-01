@@ -4,7 +4,9 @@ const walletRuntimeIdentity = {
   title: 'Sign, send, forget.',
   subtitle:
     'A minimal, client-side wallet providing passkeys credentials, key rotation, backup and recovery. Auditable, free and open source, you can run it locally to sign, send or receive funds, or authenticate users to your own domain. Keys are encrypted locally and never leave the browser.',
-  githubUrl: 'https://github.com/organigram/passkey-wallet'
+  githubUrl: 'https://github.com/organigram/passkey-wallet',
+  verifyUrl:
+    'https://organigram.ai/en/docs/advanced/passkey-wallet-security#Verify_the_wallet_you_are_using'
 } as const
 
 export type WalletRuntimeThemeConfig = {
@@ -22,7 +24,11 @@ export type WalletRuntimeConfig = {
   tagline: string
   subtitle: string
   githubUrl: string
+  verifyUrl: string
   stackOrigin: string
+  passkeyRpId: string
+  /** The copy of this wallet that users can run locally, if any. */
+  localWalletOrigin: string
   defaultChainId: number
   defaultRpcUrl: string
   rpcUrlTemplate: string
@@ -71,6 +77,18 @@ const readHttpsOrigin = (value: unknown, fallback: string): string =>
     } catch {
       return false
     }
+  })
+
+// A configured rpId lets a wallet served from a subdomain (for example
+// local.wallet.organigram.ai) use the passkeys of its parent wallet host.
+// WebAuthn only accepts the current hostname or one of its parent domains.
+const readPasskeyRpId = (value: unknown): string =>
+  readString(value, '', candidate => {
+    const hostname = window.location.hostname
+    return (
+      /^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(candidate) &&
+      (hostname === candidate || hostname.endsWith(`.${candidate}`))
+    )
   })
 
 const readColor = (value: unknown, fallback: string): string =>
@@ -126,10 +144,13 @@ const parseRuntimeConfig = (value: unknown): WalletRuntimeConfig => {
     tagline: readString(value.tagline, defaultWalletRuntimeConfig.tagline),
     subtitle: walletRuntimeIdentity.subtitle,
     githubUrl: walletRuntimeIdentity.githubUrl,
+    verifyUrl: walletRuntimeIdentity.verifyUrl,
     stackOrigin: readHttpsOrigin(
       value.stackOrigin,
       defaultWalletRuntimeConfig.stackOrigin
     ),
+    passkeyRpId: readPasskeyRpId(value.passkeyRpId),
+    localWalletOrigin: readHttpsOrigin(value.localWalletOrigin, ''),
     defaultChainId: readPositiveInteger(
       value.defaultChainId,
       defaultWalletRuntimeConfig.defaultChainId
@@ -209,3 +230,8 @@ export const loadWalletRuntimeConfig =
   }
 
 export const getWalletRuntimeConfig = (): WalletRuntimeConfig => runtimeConfig
+
+// Passkeys are scoped to the wallet host itself by default, so that no other
+// application under the same parent domain can request the wallet PRF output.
+export const getPasskeyRpId = (): string =>
+  runtimeConfig.passkeyRpId || window.location.hostname

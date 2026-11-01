@@ -1,14 +1,10 @@
-import type {
-  PasskeyWalletConnectResult,
-  PasskeyWalletSignMessageResult
-} from '@organigram/passkey-wallet/remote-protocol'
+import type { PasskeyWalletRemoteResult } from '@organigram/passkey-wallet/remote-protocol'
 import type { PasskeyWalletSignInResult } from '@organigram/passkey-wallet/sign-in-protocol'
 
 export const walletRequestChannelName = 'organigram.passkeyWallet.requests.v1'
 
 export type WalletRequestChannelResult =
-  | PasskeyWalletConnectResult
-  | PasskeyWalletSignMessageResult
+  | PasskeyWalletRemoteResult
   | PasskeyWalletSignInResult
 
 export type WalletRequestChannelMessage =

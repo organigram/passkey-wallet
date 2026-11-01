@@ -1,10 +1,13 @@
 import type { UnlockedPasskeyWallet } from '@organigram/passkey-wallet'
 import {
   derivePasskeyWalletAccount as deriveStaticPasskeyWalletAccount,
-  getDiscoverablePasskeyPrfOutput,
+  decryptVaultPayloadWithPrfOutput,
+  requestPasskeyPrfOutput,
   unlockBrowserPasskeyVault
 } from '@organigram/passkey-wallet/browser-wallet'
 import { getVaultAccount } from '@organigram/passkey-wallet/vault-registry'
+
+import { getPasskeyRpId } from './runtimeConfig'
 
 import {
   createRemoteVaultBackupPackage,
@@ -45,7 +48,8 @@ export const createActiveAccountBackupPackage = async ({
   }
 
   const unlockResult = await unlockBrowserPasskeyVault({
-    records: activeLocalVaults
+    records: activeLocalVaults,
+    rpId: getPasskeyRpId()
   })
   const account = getVaultAccount(unlockResult.record, activeAccount.address)
   if (account == null) {
@@ -66,7 +70,7 @@ export const createActiveAccountBackupPackage = async ({
       createRemoteVaultBackupRecord({
         address: activeAccount.address,
         record,
-        prfOutput: unlockResult.prfOutput
+        recoveryPhrase: unlockResult.wallet.recoveryPhrase
       })
     )
   )
@@ -90,7 +94,39 @@ export const decryptRemoteVaultBackups = async ({
   registry: VaultRegistry
   restoredAccount: StoredVaultAccount
 }> => {
-  const prfOutput = await getDiscoverablePasskeyPrfOutput()
+  // Any passkey of the wallet decrypts its own envelope, which yields the
+  // recovery phrase that keys the rest of every backup.
+  const { credentialId, prfOutput } = await requestPasskeyPrfOutput({
+    rpId: getPasskeyRpId(),
+    credentials: backups.map(backup => ({
+      credentialId: backup.credentialId,
+      prfSalt: backup.envelope.prfSalt
+    }))
+  })
+  let recoveryPhrase: string | undefined
+  try {
+    for (const backup of backups.filter(
+      candidate => candidate.credentialId === credentialId
+    )) {
+      try {
+        recoveryPhrase = (
+          await decryptVaultPayloadWithPrfOutput({
+            envelope: backup.envelope,
+            prfOutput
+          })
+        ).recoveryPhrase
+        break
+      } catch {
+        // Try the next backup of the same passkey.
+      }
+    }
+  } finally {
+    prfOutput.fill(0)
+  }
+  if (recoveryPhrase == null) {
+    throw new Error('Unable to decrypt any encrypted vault backup.')
+  }
+
   const restoredVaults: StoredVaultRecord[] = []
   for (const backup of backups) {
     try {
@@ -98,11 +134,11 @@ export const decryptRemoteVaultBackups = async ({
         await decryptRemoteVaultBackupRecord({
           address,
           backup,
-          prfOutput
+          recoveryPhrase
         })
       )
     } catch {
-      // Try the next opaque backup for this address.
+      // Skip a backup that does not belong to this wallet.
     }
   }
   const registry = parseVaultRegistry({

@@ -1,4 +1,4 @@
-import type { PasskeyVaultEnvelopeData } from './crypto';
+import { type PasskeyVaultEnvelopeData } from './crypto';
 export type StoredVaultAccount = {
     address: `0x${string}`;
     name: string;

@@ -1,7 +1,8 @@
-import { getAddress, hexToString, numberToHex } from 'viem';
+import { getAddress, hexToString, isAddress, isHex, numberToHex } from 'viem';
 import { createConnector } from 'wagmi';
-import { buildPasskeyWalletDisconnectUrl, buildPasskeyWalletRemotePopupUrl, passkeyWalletConnectResultType, passkeyWalletConnectType, passkeyWalletSignMessageResultType, passkeyWalletSignMessageType } from './remoteProtocol';
+import { buildPasskeyWalletRemotePopupUrl, assertPasskeyWalletSignMessageResult, assertPasskeyWalletSignTypedDataResult, parsePasskeyWalletTypedData, passkeyWalletRemoteRequestPayloadType, passkeyWalletConnectResultType, passkeyWalletConnectType, passkeyWalletSignMessageResultType, passkeyWalletSignMessageType, passkeyWalletSignTypedDataResultType, passkeyWalletSignTypedDataType, passkeyWalletSendTransactionResultType, passkeyWalletSendTransactionType, passkeyWalletRemoteErrorResultType } from './remoteProtocol';
 import { organigramPasskeyWalletIcon, organigramPasskeyWalletId } from './types';
+import { getAcceptedWalletOrigins, postToWalletPopup, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
 const remoteWalletName = 'Passkey Wallet';
 const remoteWalletId = organigramPasskeyWalletId;
 const remoteWalletConnectionStorageKey = 'organigram.remotePasskeyWallet.connection.v1';
@@ -66,33 +67,6 @@ export const clearOrganigramRemotePasskeyWalletConnection = () => {
         // Local storage can be unavailable in hardened browser modes.
     }
 };
-export const notifyOrganigramRemotePasskeyWalletDisconnect = ({ walletOrigin, address, chainId }) => {
-    if (typeof window === 'undefined')
-        return;
-    try {
-        const url = buildPasskeyWalletDisconnectUrl({
-            walletOrigin,
-            address,
-            chainId
-        });
-        const iframe = window.document.createElement('iframe');
-        iframe.src = url.toString();
-        iframe.hidden = true;
-        iframe.setAttribute('aria-hidden', 'true');
-        iframe.style.position = 'absolute';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        iframe.style.opacity = '0';
-        window.document.body.appendChild(iframe);
-        window.setTimeout(() => {
-            iframe.remove();
-        }, 3000);
-    }
-    catch {
-        // Disconnect notifications should never block local disconnect.
-    }
-};
 export const hydrateOrganigramRemoteWalletConnection = async ({ address, chainId, connectAsync, connectors, defaultChainId = 11155111 }) => {
     const resolvedChainId = chainId ?? defaultChainId;
     rememberOrganigramRemotePasskeyWalletConnection({
@@ -111,12 +85,48 @@ export const hydrateOrganigramRemoteWalletConnection = async ({ address, chainId
     }
 };
 const createRequestId = () => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    if (typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    return `req_${Date.now().toString(36)}_${Math.random()
-        .toString(36)
-        .slice(2)}`;
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+};
+let pendingApprovalSequence = null;
+/**
+ * Adds presentation-only context to the next wallet approvals. This lets an
+ * app tell the wallet that one user action requires several signatures,
+ * without broadening any approval or altering its signed payload.
+ */
+export const beginOrganigramWalletApprovalSequence = ({ count, label }) => {
+    if (!Number.isSafeInteger(count) || count < 1) {
+        throw new Error('Organigram Wallet approval count must be a positive integer.');
+    }
+    const sequence = {
+        count,
+        nextStep: 1,
+        ...(label == null || label === '' ? {} : { label })
+    };
+    pendingApprovalSequence = sequence;
+    return () => {
+        if (pendingApprovalSequence === sequence) {
+            pendingApprovalSequence = null;
+        }
+    };
+};
+const consumeOrganigramWalletApprovalSequence = () => {
+    const sequence = pendingApprovalSequence;
+    if (sequence == null)
+        return undefined;
+    const approval = {
+        approvalStep: sequence.nextStep,
+        approvalCount: sequence.count,
+        ...(sequence.label == null ? {} : { approvalLabel: sequence.label })
+    };
+    sequence.nextStep += 1;
+    if (sequence.nextStep > sequence.count) {
+        pendingApprovalSequence = null;
+    }
+    return approval;
 };
 const normalizePersonalSignMessage = (message) => {
     if (typeof message !== 'string') {
@@ -126,6 +136,59 @@ const normalizePersonalSignMessage = (message) => {
         return hexToString(message);
     }
     return message;
+};
+const normalizeSignTypedDataRequest = (params, connectedAddress) => {
+    const [first, second] = params;
+    const firstIsAddress = typeof first === 'string' && /^0x[a-fA-F0-9]{40}$/.test(first);
+    const secondIsAddress = typeof second === 'string' && /^0x[a-fA-F0-9]{40}$/.test(second);
+    const address = (firstIsAddress ? first : secondIsAddress ? second : connectedAddress);
+    const typedDataInput = firstIsAddress
+        ? second
+        : secondIsAddress
+            ? first
+            : second;
+    if (getAddress(address) !== getAddress(connectedAddress)) {
+        throw new Error(`Organigram Wallet cannot sign typed data for ${getAddress(address)} while connected as ${getAddress(connectedAddress)}.`);
+    }
+    return {
+        address: getAddress(address),
+        typedData: parsePasskeyWalletTypedData(typedDataInput)
+    };
+};
+const normalizeTransactionRequest = (value, connectedAddress) => {
+    if (typeof value !== 'object' || value == null) {
+        throw new Error('Organigram Wallet expected a transaction object.');
+    }
+    const transaction = value;
+    const from = transaction.from == null ? connectedAddress : String(transaction.from);
+    const to = String(transaction.to ?? '');
+    if (!isAddress(from) ||
+        getAddress(from) !== getAddress(connectedAddress) ||
+        !isAddress(to)) {
+        throw new Error('Organigram Wallet transaction account or destination is invalid.');
+    }
+    const result = {
+        from: getAddress(from),
+        to: getAddress(to)
+    };
+    for (const key of [
+        'data',
+        'value',
+        'gas',
+        'gasPrice',
+        'maxFeePerGas',
+        'maxPriorityFeePerGas',
+        'nonce'
+    ]) {
+        const field = transaction[key];
+        if (field == null)
+            continue;
+        if (typeof field !== 'string' || !isHex(field)) {
+            throw new Error(`Organigram Wallet transaction ${key} must be hexadecimal.`);
+        }
+        result[key] = field;
+    }
+    return result;
 };
 const createRemotePopupTransport = (walletOrigin) => {
     let popup = null;
@@ -149,17 +212,41 @@ const createRemotePopupTransport = (walletOrigin) => {
             closePopup();
         }, 30000);
     };
-    const request = async ({ type, expectedResultType, chainId, address, message, timeoutMs = 5 * 60 * 1000 }) => {
+    const request = async ({ type, expectedResultType, chainId, address, message, typedData, transaction, timeoutMs = 5 * 60 * 1000 }) => {
         const requestId = createRequestId();
-        const popupUrl = buildPasskeyWalletRemotePopupUrl({
+        const approval = consumeOrganigramWalletApprovalSequence();
+        const configuredPopupUrl = buildPasskeyWalletRemotePopupUrl({
             walletOrigin,
             type,
             requestId,
             chainId,
-            ...(address == null ? {} : { address }),
-            ...(message == null ? {} : { message })
+            ...approval,
+            ...(address == null ? {} : { address })
         });
-        const expectedOrigin = popupUrl.origin;
+        const configuredOrigin = configuredPopupUrl.origin;
+        const acceptedOrigins = getAcceptedWalletOrigins(configuredOrigin);
+        const popupUrl = toPreferredWalletUrl(configuredPopupUrl);
+        const requestPayload = address != null &&
+            (message != null || typedData != null || transaction != null)
+            ? {
+                type: passkeyWalletRemoteRequestPayloadType,
+                version: 1,
+                request: {
+                    type,
+                    version: 1,
+                    requestId,
+                    appOrigin: popupUrl.searchParams.get('appOrigin') ?? '',
+                    domain: popupUrl.searchParams.get('domain') ?? '',
+                    chainId,
+                    requestedAt: popupUrl.searchParams.get('requestedAt') ?? '',
+                    address,
+                    ...approval,
+                    ...(message == null ? {} : { message }),
+                    ...(typedData == null ? {} : { typedData }),
+                    ...(transaction == null ? {} : { transaction })
+                }
+            }
+            : null;
         clearCloseTimer();
         if (popup == null || popup.closed) {
             popup = window.open(popupUrl.toString(), 'passkey-wallet', 'popup,width=480,height=720');
@@ -171,20 +258,49 @@ const createRemotePopupTransport = (walletOrigin) => {
         if (popup == null) {
             throw new Error('Unable to open Organigram Wallet popup.');
         }
+        const openedPopup = popup;
         return await new Promise((resolve, reject) => {
+            const stopWatchingLocalWallet = watchLocalWalletPopup({
+                popup: openedPopup,
+                popupUrl,
+                walletOrigin: configuredOrigin,
+                requestId
+            });
             const timeout = window.setTimeout(() => {
                 cleanup();
                 closePopup();
                 reject(new Error('Organigram Wallet request timed out.'));
             }, timeoutMs);
+            const payloadTimer = requestPayload == null
+                ? null
+                : window.setInterval(() => {
+                    postToWalletPopup(openedPopup, requestPayload, configuredOrigin);
+                }, 250);
             const cleanup = () => {
                 window.clearTimeout(timeout);
+                if (payloadTimer != null)
+                    window.clearInterval(payloadTimer);
+                stopWatchingLocalWallet();
                 window.removeEventListener('message', handleMessage);
             };
+            if (requestPayload != null) {
+                postToWalletPopup(openedPopup, requestPayload, configuredOrigin);
+            }
             function handleMessage(event) {
-                if (event.origin !== expectedOrigin)
+                if (!acceptedOrigins.includes(event.origin))
                     return;
                 const data = event.data;
+                if (data != null &&
+                    data.type === passkeyWalletRemoteErrorResultType &&
+                    data.version === 1 &&
+                    data.requestId === requestId &&
+                    data.chainId === chainId &&
+                    typeof data.error === 'string') {
+                    cleanup();
+                    closePopup();
+                    reject(new Error(data.error));
+                    return;
+                }
                 if (data == null ||
                     data.type !== expectedResultType ||
                     data.version !== 1 ||
@@ -194,12 +310,16 @@ const createRemotePopupTransport = (walletOrigin) => {
                     return;
                 }
                 cleanup();
-                if (type === passkeyWalletConnectType) {
+                // A following approval can reuse this user-initiated popup. The last
+                // (or standalone) approval closes it immediately.
+                if (approval != null &&
+                    approval.approvalStep < approval.approvalCount) {
                     schedulePopupClose();
                 }
                 else {
                     closePopup();
                 }
+                rememberWalletOrigin(configuredOrigin, event.origin);
                 resolve(data);
             }
             window.addEventListener('message', handleMessage);
@@ -211,16 +331,48 @@ const createRemotePopupTransport = (walletOrigin) => {
             expectedResultType: passkeyWalletConnectResultType,
             chainId
         }),
-        signMessage: async ({ address, chainId, message }) => await request({
-            type: passkeyWalletSignMessageType,
-            expectedResultType: passkeyWalletSignMessageResultType,
+        signMessage: async ({ address, chainId, message }) => {
+            const result = await request({
+                type: passkeyWalletSignMessageType,
+                expectedResultType: passkeyWalletSignMessageResultType,
+                chainId,
+                address,
+                message
+            });
+            await assertPasskeyWalletSignMessageResult({
+                result,
+                address,
+                chainId,
+                message
+            });
+            return result;
+        },
+        signTypedData: async ({ address, chainId, typedData }) => {
+            const result = await request({
+                type: passkeyWalletSignTypedDataType,
+                expectedResultType: passkeyWalletSignTypedDataResultType,
+                chainId,
+                address,
+                typedData
+            });
+            await assertPasskeyWalletSignTypedDataResult({
+                result,
+                address,
+                chainId,
+                typedData
+            });
+            return result;
+        },
+        sendTransaction: async ({ address, chainId, transaction }) => await request({
+            type: passkeyWalletSendTransactionType,
+            expectedResultType: passkeyWalletSendTransactionResultType,
             chainId,
             address,
-            message
+            transaction
         })
     };
 };
-const createRemotePasskeyWalletProvider = ({ getAddress, getChain, rpcUrl, switchChain, requestPersonalSign }) => {
+const createRemotePasskeyWalletProvider = ({ getAddress, getChain, rpcUrl, switchChain, requestPersonalSign, requestSignTypedData, requestSendTransaction }) => {
     const listeners = new Map();
     const emit = (event, ...args) => {
         listeners.get(event)?.forEach(listener => {
@@ -250,28 +402,69 @@ const createRemotePasskeyWalletProvider = ({ getAddress, getChain, rpcUrl, switc
             }
             case 'personal_sign': {
                 const address = requireConnectedAddress();
+                const message = normalizePersonalSignMessage(requestParams[0]);
                 const result = await requestPersonalSign({
                     address,
                     chainId: getChain().id,
-                    message: normalizePersonalSignMessage(requestParams[0])
+                    message
+                });
+                await assertPasskeyWalletSignMessageResult({
+                    result,
+                    address,
+                    chainId: getChain().id,
+                    message
                 });
                 return result.signature;
             }
             case 'eth_sign': {
                 const address = requireConnectedAddress();
+                const message = normalizePersonalSignMessage(requestParams[1]);
                 const result = await requestPersonalSign({
                     address,
                     chainId: getChain().id,
-                    message: normalizePersonalSignMessage(requestParams[1])
+                    message
+                });
+                await assertPasskeyWalletSignMessageResult({
+                    result,
+                    address,
+                    chainId: getChain().id,
+                    message
                 });
                 return result.signature;
             }
             case 'eth_signTypedData':
             case 'eth_signTypedData_v3':
-            case 'eth_signTypedData_v4':
-                throw new Error('Typed data signing is not available in Organigram Wallet yet.');
-            case 'eth_sendTransaction':
-                throw new Error('Transaction signing is not available in Organigram Wallet yet.');
+            case 'eth_signTypedData_v4': {
+                const connectedAddress = requireConnectedAddress();
+                const { address, typedData } = normalizeSignTypedDataRequest(requestParams, connectedAddress);
+                const result = await requestSignTypedData({
+                    address,
+                    chainId: getChain().id,
+                    typedData
+                });
+                await assertPasskeyWalletSignTypedDataResult({
+                    result,
+                    address,
+                    chainId: getChain().id,
+                    typedData
+                });
+                return result.signature;
+            }
+            case 'eth_sendTransaction': {
+                const address = requireConnectedAddress();
+                const transaction = normalizeTransactionRequest(requestParams[0], address);
+                const result = await requestSendTransaction({
+                    address,
+                    chainId: getChain().id,
+                    transaction
+                });
+                if (result.address.toLowerCase() !== address.toLowerCase() ||
+                    result.chainId !== getChain().id ||
+                    !isHex(result.transactionHash)) {
+                    throw new Error('Organigram Wallet returned an invalid transaction result.');
+                }
+                return result.transactionHash;
+            }
             default: {
                 const response = await fetch(rpcUrl(), {
                     method: 'POST',
@@ -305,10 +498,12 @@ const createRemotePasskeyWalletProvider = ({ getAddress, getChain, rpcUrl, switc
         }
     };
 };
-export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConnect, requestPersonalSign } = {}) => {
+export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConnect, requestPersonalSign, requestSignTypedData, requestSendTransaction } = {}) => {
     const remotePopupTransport = createRemotePopupTransport(walletOrigin);
     const connectRemote = requestConnect ?? remotePopupTransport.connect;
     const signRemoteMessage = requestPersonalSign ?? remotePopupTransport.signMessage;
+    const signRemoteTypedData = requestSignTypedData ?? remotePopupTransport.signTypedData;
+    const sendRemoteTransaction = requestSendTransaction ?? remotePopupTransport.sendTransaction;
     return {
         id: remoteWalletId,
         name: remoteWalletName,
@@ -344,7 +539,9 @@ export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConne
                         });
                         return activeChain;
                     },
-                    requestPersonalSign: signRemoteMessage
+                    requestPersonalSign: signRemoteMessage,
+                    requestSignTypedData: signRemoteTypedData,
+                    requestSendTransaction: sendRemoteTransaction
                 });
                 return provider;
             };
@@ -416,21 +613,6 @@ export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConne
                     return formatConnectionResult(parameters?.withCapabilities);
                 },
                 async disconnect() {
-                    const connection = address == null
-                        ? getOrganigramRemotePasskeyWalletConnection()
-                        : {
-                            version: 1,
-                            address,
-                            chainId: activeChain.id,
-                            connectedAt: new Date().toISOString()
-                        };
-                    if (connection != null) {
-                        notifyOrganigramRemotePasskeyWalletDisconnect({
-                            walletOrigin,
-                            address: connection.address,
-                            chainId: connection.chainId
-                        });
-                    }
                     address = null;
                     provider = null;
                     clearOrganigramRemotePasskeyWalletConnection();
@@ -472,7 +654,9 @@ export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConne
                 },
                 onAccountsChanged(accounts) {
                     address =
-                        accounts[0] == null ? null : getAddress(accounts[0]);
+                        accounts[0] == null
+                            ? null
+                            : getAddress(accounts[0]);
                     if (address == null) {
                         clearOrganigramRemotePasskeyWalletConnection();
                     }

@@ -2,7 +2,16 @@ import {
   type PasskeyWalletSignInResult
 } from '@organigram/passkey-wallet/sign-in-protocol'
 import {
-  type PasskeyWalletSignMessageResult
+  isPasskeyWalletRemoteRequestPayloadMessage,
+  passkeyWalletSignMessageType,
+  passkeyWalletSignTypedDataType,
+  passkeyWalletSendTransactionType,
+  passkeyWalletEncryptPayloadType,
+  passkeyWalletDecryptPayloadType,
+  stringifyPasskeyWalletTypedData,
+  type PasskeyWalletSignMessageResult,
+  type PasskeyWalletSignTypedDataResult,
+  type PasskeyWalletSendTransactionResult
 } from '@organigram/passkey-wallet/remote-protocol'
 import {
   createContext,
@@ -63,7 +72,6 @@ import {
   isWalletPendingConnectionRequestExpired,
   recordWalletPendingConnectionRequest,
   removeWalletPendingConnectionRequest,
-  revokeActiveWalletConnectionRecord,
   revokeWalletConnectionRecordsForAppSession,
   revokeWalletConnectionRecord,
   syncWalletConnectionRecordsForAppSessions,
@@ -104,7 +112,11 @@ const useWalletAppState = () => {
   const [pendingRequest, setPendingRequest] =
     useState<PendingWalletRequest | null>(null)
   const [lastResult, setLastResult] = useState<
-    PasskeyWalletSignInResult | PasskeyWalletSignMessageResult | null
+    | PasskeyWalletSignInResult
+    | PasskeyWalletSignMessageResult
+    | PasskeyWalletSignTypedDataResult
+    | PasskeyWalletSendTransactionResult
+    | null
   >(null)
   const [status, setStatus] = useState('Wallet ready.')
   const [error, setError] = useState<string | null>(null)
@@ -167,7 +179,8 @@ const useWalletAppState = () => {
   )
   const portfolio = useWalletPortfolio({
     activeAccountAddress,
-    setError
+    setError,
+    enabled: !isRequestPage
   })
   const { setBalanceRefreshKey, setLastTransactionHash, walletChain } =
     portfolio
@@ -448,27 +461,7 @@ const useWalletAppState = () => {
         pathname: window.location.pathname,
         search: window.location.search
       })
-      if (locationRequest.kind === 'disconnect') {
-        const { request } = locationRequest
-        setWalletConnectionRecords(
-          revokeActiveWalletConnectionRecord({
-            domain: request.domain,
-            appOrigin: request.appOrigin,
-            address: request.address
-          })
-        )
-        setWalletPendingConnectionRequests(
-          removeWalletPendingConnectionRequest({
-            kind: 'connect',
-            requestId: request.requestId
-          })
-        )
-        setPendingRequest(null)
-        setStatus(locationRequest.status)
-        window.setTimeout(() => {
-          window.close()
-        }, 250)
-      } else if (locationRequest.kind === 'pending') {
+      if (locationRequest.kind === 'pending') {
         setPendingRequest(locationRequest.pendingRequest)
         setWalletPendingConnectionRequests(
           recordWalletPendingConnectionRequest(
@@ -484,6 +477,120 @@ const useWalletAppState = () => {
     setStaticVaults(defaultStaticVaultRegistry.vaults)
     setIsRegistryReady(true)
   }, [refreshVaults])
+
+  useEffect(() => {
+    if (!isRequestPage) return
+
+    const params = new URLSearchParams(window.location.search)
+    if (
+      (params.get('type') !== passkeyWalletSignMessageType &&
+        params.get('type') !== passkeyWalletSignTypedDataType &&
+        params.get('type') !== passkeyWalletSendTransactionType &&
+        params.get('type') !== passkeyWalletEncryptPayloadType &&
+        params.get('type') !== passkeyWalletDecryptPayloadType) ||
+      params.get('messageTransport') !== 'post-message'
+    ) {
+      return
+    }
+
+    const expectedRequestId = params.get('requestId')
+    const expectedAppOrigin = params.get('appOrigin')
+    if (expectedRequestId == null || expectedAppOrigin == null) return
+
+    let expectedOrigin: string
+    try {
+      expectedOrigin = new URL(expectedAppOrigin).origin
+    } catch {
+      setError('Invalid wallet request origin.')
+      return
+    }
+
+    let didReceivePayload = false
+    setStatus('Waiting for wallet request payload...')
+
+    const handleMessage = (event: MessageEvent): void => {
+      if (didReceivePayload || event.origin !== expectedOrigin) return
+      if (
+        !isPasskeyWalletRemoteRequestPayloadMessage(
+          event.data,
+          expectedRequestId
+        )
+      ) {
+        return
+      }
+
+      const { request } = event.data
+      if (
+        (request.type !== passkeyWalletSignMessageType &&
+          request.type !== passkeyWalletSignTypedDataType &&
+          request.type !== passkeyWalletSendTransactionType &&
+          request.type !== passkeyWalletEncryptPayloadType &&
+          request.type !== passkeyWalletDecryptPayloadType) ||
+        request.appOrigin !== expectedOrigin
+      ) {
+        return
+      }
+
+      didReceivePayload = true
+      const requestParams = new URLSearchParams({
+        type: request.type,
+        version: request.version.toString(),
+        requestId: request.requestId,
+        appOrigin: request.appOrigin,
+        domain: request.domain,
+        chainId: request.chainId.toString(),
+        requestedAt: request.requestedAt,
+        address: request.address
+      })
+      if (
+        request.approvalStep != null &&
+        request.approvalCount != null
+      ) {
+        requestParams.set('approvalStep', request.approvalStep.toString())
+        requestParams.set('approvalCount', request.approvalCount.toString())
+        if (request.approvalLabel != null) {
+          requestParams.set('approvalLabel', request.approvalLabel)
+        }
+      }
+      if (request.type === passkeyWalletSignMessageType) {
+        requestParams.set('message', request.message)
+      } else if (request.type === passkeyWalletSignTypedDataType) {
+        requestParams.set(
+          'typedData',
+          stringifyPasskeyWalletTypedData(request.typedData)
+        )
+      } else if (request.type === passkeyWalletSendTransactionType) {
+        requestParams.set('transaction', JSON.stringify(request.transaction))
+      } else {
+        // Encrypted payloads must never be copied into the URL or persisted
+        // pending-request state. A reload simply requires Stack to issue the
+        // postMessage request again.
+        requestParams.set('messageTransport', 'post-message')
+      }
+      setPendingRequest({
+        kind: 'remote',
+        request
+      })
+      setWalletPendingConnectionRequests(
+        recordWalletPendingConnectionRequest({
+          kind: request.type === passkeyWalletSignTypedDataType ? 'sign-typed-data' : request.type === passkeyWalletSendTransactionType ? 'send-transaction' : request.type === passkeyWalletEncryptPayloadType ? 'encrypt-payload' : request.type === passkeyWalletDecryptPayloadType ? 'decrypt-payload' : 'sign-message',
+          requestId: request.requestId,
+          domain: request.domain,
+          appOrigin: request.appOrigin,
+          address: request.address,
+          chainId: request.chainId,
+          requestedAt: request.requestedAt,
+          requestUrl: `${window.location.pathname}?${requestParams.toString()}`
+        })
+      )
+      setStatus(`Review wallet request from ${request.domain}.`)
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => {
+      window.removeEventListener('message', handleMessage)
+    }
+  }, [isRequestPage])
 
   useEffect(() => {
     if (pendingRequest == null || typeof BroadcastChannel === 'undefined') {
