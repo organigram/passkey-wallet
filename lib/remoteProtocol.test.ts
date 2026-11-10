@@ -2,6 +2,8 @@ import {
   buildPasskeyWalletRemotePopupUrl,
   passkeyWalletConnectType,
   parsePasskeyWalletRemoteRequest,
+  isPasskeyWalletRemoteRequestPayloadMessage,
+  passkeyWalletRemoteRequestPayloadType,
   passkeyWalletDecryptPayloadType,
   passkeyWalletEncryptPayloadType,
   passkeyWalletSendTransactionType,
@@ -184,6 +186,25 @@ describe('Organigram wallet remote protocol', () => {
       expect(url.searchParams.get('messageTransport')).toBe('post-message')
     }
   )
+
+  it('rejects a posted request whose domain is not its own origin', () => {
+    const message = (domain: string) => ({
+      type: passkeyWalletRemoteRequestPayloadType,
+      version: 1,
+      request: {
+        type: passkeyWalletConnectType,
+        version: 1,
+        requestId: 'request-1',
+        appOrigin: 'https://attacker.example',
+        domain,
+        chainId: 1,
+        requestedAt: new Date().toISOString()
+      }
+    })
+
+    expect(isPasskeyWalletRemoteRequestPayloadMessage(message('organigram.ai'))).toBe(false)
+    expect(isPasskeyWalletRemoteRequestPayloadMessage(message('attacker.example'))).toBe(true)
+  })
 
   it('reads connect requests from the URL', () => {
     const url = buildPasskeyWalletRemotePopupUrl({

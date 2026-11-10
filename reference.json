@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Connect an app",
+    "files": ["remoteRainbowkit", "remoteProtocol", "walletOrigin"],
+    "intro": "Apps reach the wallet through `createOrganigramRemotePasskeyWallet()`, a RainbowKit wallet whose wagmi connector opens the wallet in a popup. Each connection, signature, transaction or encryption is a request that the user approves in the popup. Apps exchange requests and answers with the popup through `postMessage`, and only accept answers from the wallet origin and its local copy. Signatures are checked against the connected address and chain before they reach the app. Private keys never leave the wallet origin."
+  },
+  {
+    "title": "Sign in",
+    "files": ["signInClient", "nextAuth", "server", "signInProtocol"],
+    "intro": "Users sign in to an app with Sign-In with Ethereum. The app issues a message with a nonce from its server, the wallet signs it in a popup, and the server verifies the signature, the domain and the nonce before opening a session. With NextAuth, `signInWithPasskeyWallet()` runs the whole flow in the browser, and `authorizePasskeyWalletCredentials()` verifies the result in a credentials provider."
+  },
+  {
+    "title": "Passkey vaults",
+    "files": ["browserWallet", "crypto", "types", "errors"],
+    "intro": "The wallet is a standard Ethereum account derived from a BIP-39 recovery phrase. The recovery phrase is encrypted in a vault with AES-256-GCM, under a key derived from the PRF output of a WebAuthn passkey, so that only that passkey can decrypt it. A wallet can have several passkeys, each with its own vault. These functions run in the wallet app: an unlocked wallet holds the recovery phrase and keys in memory, so keep it there only as long as needed, and never store, send or log it."
+  },
+  {
+    "title": "Vault records",
+    "files": ["localVault", "vaultRegistry"],
+    "intro": "A vault record holds a vault envelope with the public details needed to unlock it: the accounts, the passkey and its device. Records hold no secret in clear, so that they can be stored in the browser or exported. These functions read, list and update records."
+  },
+  {
+    "title": "Backups",
+    "files": ["backup"],
+    "intro": "Vault records can be backed up on a server. Each backup exposes only its vault envelope and passkey identifier: the rest of the record is encrypted with a key derived from the recovery phrase, so that the server learns nothing beyond the wallet address, and any passkey of the wallet can restore every backup."
+  },
+  {
+    "title": "End-to-end encryption",
+    "files": ["encryption"],
+    "intro": "Each wallet has an ECDH P-256 key pair, stored in its vaults, to encrypt files and texts that only it can decrypt. Its public key can be shared with an app in a Sign-In with Ethereum resource. Texts encrypted for an app are bound to the origin of that app, so that another app cannot have them decrypted."
+  }
+]

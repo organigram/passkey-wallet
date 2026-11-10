@@ -24,6 +24,15 @@ const uniqueOrigins = (origins) => Array.from(new Set(origins.map(origin => {
         return '';
     }
 }))).filter(Boolean);
+/**
+ * Get the public origin of a request, from the `X-Forwarded-Host` and
+ * `X-Forwarded-Proto` headers when present.
+ *
+ * @remarks
+ * Clients can set these headers. Only rely on the result behind a proxy that
+ * overwrites them.
+ * @param request - The request.
+ */
 export const getPasskeyWalletRequestOrigin = (request) => {
     const url = new URL(request.url);
     const forwardedHost = request.headers.get('x-forwarded-host');
@@ -32,6 +41,12 @@ export const getPasskeyWalletRequestOrigin = (request) => {
     const protocol = forwardedProto?.split(',')[0]?.trim() || url.protocol.replace(':', '');
     return `${protocol}://${host}`;
 };
+/**
+ * Create the manifest of an app, with the challenge URL
+ * `/api/auth/wallet/challenge` on the origin of the request.
+ *
+ * @param request - The request for the manifest.
+ */
 export const createPasskeyWalletManifest = (request) => {
     const origin = getPasskeyWalletRequestOrigin(request);
     const domain = new URL(origin).host;
@@ -41,6 +56,16 @@ export const createPasskeyWalletManifest = (request) => {
         signInChallengeUrl: `${origin}/api/auth/wallet/challenge`
     };
 };
+/**
+ * List the wallet origins allowed to call the sign-in endpoints of an app.
+ *
+ * @remarks
+ * Allows the official wallet and its local copy, the configured wallet and its
+ * local copy, other configured origins, and, when the app runs on localhost,
+ * the wallet served on port 3002 of the same host.
+ * @param input - The request, the URL of the configured wallet, and other
+ * allowed origins, separated by commas.
+ */
 export const getPasskeyWalletCorsAllowedOrigins = ({ allowedOrigins = '', request, walletUrl }) => {
     const requestOrigin = new URL(getPasskeyWalletRequestOrigin(request));
     // A local Stack also accepts the wallet served on its own host.
@@ -55,6 +80,13 @@ export const getPasskeyWalletCorsAllowedOrigins = ({ allowedOrigins = '', reques
         ...localOrigins
     ]);
 };
+/**
+ * Get the origin of a request if it is an allowed wallet origin.
+ *
+ * @param input - The request, the URL of the configured wallet, and other
+ * allowed origins, separated by commas.
+ * @returns The origin, or `null`.
+ */
 export const getPasskeyWalletCorsOrigin = ({ allowedOrigins, request, walletUrl }) => {
     const requestOrigin = request.headers.get('origin');
     if (requestOrigin == null || requestOrigin === '')
@@ -68,6 +100,15 @@ export const getPasskeyWalletCorsOrigin = ({ allowedOrigins, request, walletUrl 
         ? normalizedOrigin
         : null;
 };
+/**
+ * Add CORS headers with credentials to a response, if the request comes from an
+ * allowed wallet origin.
+ *
+ * @param request - The request.
+ * @param response - The response, returned with its headers changed.
+ * @param options - Allowed methods, `GET, OPTIONS` by default, the URL of the
+ * configured wallet, and other allowed origins.
+ */
 export const withPasskeyWalletCorsHeaders = (request, response, options = {}) => {
     const origin = getPasskeyWalletCorsOrigin({
         request,
@@ -83,6 +124,18 @@ export const withPasskeyWalletCorsHeaders = (request, response, options = {}) =>
     response.headers.set('Vary', 'Origin');
     return response;
 };
+/**
+ * Create a Sign-In with Ethereum message for an address, valid for 5 minutes.
+ *
+ * @remarks
+ * Store the nonce on the server, for example in the session, and check it with
+ * `verifyPasskeyWalletSiwe()`.
+ * @param input - The request, the address and chain, and optionally the public
+ * key resource from `createWalletEncryptionPublicKeySiweResource()`, a nonce,
+ * the current date, a statement and the URI of the app, the origin of the
+ * request by default.
+ * @throws When the address is not valid.
+ */
 export const createPasskeyWalletChallenge = ({ address, chainId, encryptionPublicKeyResource, nonce = createNonce(), now = new Date(), request, statement, uri }) => {
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
         throw new Error('A valid wallet address is required.');
@@ -112,6 +165,12 @@ export const createPasskeyWalletChallenge = ({ address, chainId, encryptionPubli
         message
     };
 };
+/**
+ * Build the URL of the wallet popup for a sign-in request.
+ *
+ * @param input - The origin of the wallet, the domain of the app, its challenge
+ * URL, and optionally the request identifier, date and return URL.
+ */
 export const buildPasskeyWalletPopupUrl = ({ challengeUrl, domain, requestId = createRequestId(), requestedAt = new Date().toISOString(), returnUrl, walletOrigin }) => {
     const url = new URL(walletOrigin);
     url.pathname = '/request';
@@ -126,10 +185,38 @@ export const buildPasskeyWalletPopupUrl = ({ challengeUrl, domain, requestId = c
     }
     return url;
 };
+/**
+ * Check whether an origin is one of a list of allowed origins.
+ *
+ * @param origin - The origin to check.
+ * @param allowedOrigins - The allowed origins.
+ */
 export const isWalletSignInOriginAllowed = (origin, allowedOrigins) => {
     const normalizedOrigin = new URL(origin).origin;
     return allowedOrigins.some(allowedOrigin => new URL(allowedOrigin).origin === normalizedOrigin);
 };
+/**
+ * Verify a Sign-In with Ethereum message signed by the wallet.
+ *
+ * @remarks
+ * Checks the signature, the domain, the nonce and the validity dates of the
+ * message with viem. Never pass an empty domain or nonce: viem then skips
+ * their check. Check that the nonce is the one the app issued for this
+ * session, and use it only once.
+ * @param input - The message, signature, expected domain and nonce, and an RPC
+ * endpoint.
+ * @returns The verified sign-in, or `null` if the message is invalid.
+ * @example
+ * ```ts
+ * const verified = await verifyPasskeyWalletSiwe({
+ *   message,
+ *   signature,
+ *   domain: 'app.example.com',
+ *   nonce: session.nonce,
+ *   transportUrl: rpcUrl
+ * })
+ * ```
+ */
 export const verifyPasskeyWalletSiwe = async ({ chain, domain, message, nonce, signature, transportOptions, transportUrl }) => {
     const siwe = parseSiweMessage(message);
     if (siwe.address == null ||

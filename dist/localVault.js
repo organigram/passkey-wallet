@@ -33,6 +33,11 @@ const isStoredVaultAccount = (value) => {
         typeof account.derivationPath === 'string' &&
         account.derivationPath !== '');
 };
+/**
+ * Check that a value is a valid vault record.
+ *
+ * @param value - The value to check.
+ */
 export const isStoredVaultRecord = (value) => {
     if (typeof value !== 'object' || value == null)
         return false;
@@ -53,6 +58,12 @@ export const isStoredVaultRecord = (value) => {
         (record.lastUsedAt == null || typeof record.lastUsedAt === 'string') &&
         isPasskeyVaultEnvelope(record.envelope));
 };
+/**
+ * Read a vault registry, dropping invalid records.
+ *
+ * @param value - The registry, parsed from JSON.
+ * @throws When the value is not a registry of a supported version.
+ */
 export const parseVaultRegistry = (value) => {
     if (typeof value !== 'object' || value == null) {
         throw new Error('Vault registry must be a JSON object.');
@@ -66,16 +77,45 @@ export const parseVaultRegistry = (value) => {
         vaults: registry.vaults.filter(isStoredVaultRecord)
     };
 };
+/**
+ * Wrap vault records in a registry.
+ *
+ * @param vaults - The vault records.
+ */
 export const createVaultRegistry = (vaults) => ({
     version: 1,
     vaults
 });
+/**
+ * Serialize vault records as a registry in JSON.
+ *
+ * @param vaults - The vault records.
+ * @param space - Indentation of the JSON.
+ */
 export const serializeVaultRegistry = (vaults, space = 2) => `${JSON.stringify(createVaultRegistry(vaults), null, space)}\n`;
+/**
+ * Check whether a vault holds an account, ignoring the case of the address.
+ *
+ * @param vault - The vault record.
+ * @param address - The address of the account.
+ */
 export const vaultHasAccount = (vault, address) => vault.accounts.some(account => account.address.toLowerCase() === address.toLowerCase());
+/**
+ * Add a vault record, or replace the record of the same passkey, and put it
+ * first.
+ *
+ * @param input - The vault records and the record to add.
+ */
 export const upsertVaultRecord = ({ vaults, record }) => [
     record,
     ...vaults.filter(vault => vault.credentialId !== record.credentialId)
 ];
+/**
+ * Add an account to every vault of the wallet that holds another account.
+ *
+ * @param input - The vault records, an account the wallet already holds, and
+ * the account to add.
+ */
 export const addAccountToVaultRecords = ({ vaults, sourceAddress, account }) => vaults.map(vault => vaultHasAccount(vault, sourceAddress)
     ? {
         ...vault,
@@ -84,14 +124,38 @@ export const addAccountToVaultRecords = ({ vaults, sourceAddress, account }) => 
             : [...vault.accounts, account].sort((left, right) => left.addressIndex - right.addressIndex)
     }
     : vault);
+/**
+ * Remove the vault record of a passkey.
+ *
+ * @param input - The vault records and the identifier of the passkey.
+ */
 export const removeVaultRecord = ({ vaults, credentialId }) => vaults.filter(vault => vault.credentialId !== credentialId);
+/**
+ * Remove the vault records of several passkeys.
+ *
+ * @param input - The vault records and the identifiers of the passkeys.
+ */
 export const removeVaultRecords = ({ vaults, credentialIds }) => vaults.filter(vault => !credentialIds.has(vault.credentialId));
+/**
+ * Remove an account from every vault, and the vaults left without accounts.
+ *
+ * @remarks
+ * This only removes local records. Without a remaining vault or exported
+ * recovery phrase, the account can no longer be unlocked.
+ * @param input - The vault records and the address of the account.
+ */
 export const removeAccountFromVaultRecords = ({ vaults, address }) => vaults
     .map(vault => ({
     ...vault,
     accounts: vault.accounts.filter(account => account.address.toLowerCase() !== address.toLowerCase())
 }))
     .filter(vault => vault.accounts.length > 0);
+/**
+ * Set the date of the last unlock of a vault.
+ *
+ * @param input - The vault records, the identifier of the passkey, and the
+ * date, now by default.
+ */
 export const markVaultRecordUsed = ({ vaults, credentialId, usedAt = new Date().toISOString() }) => vaults.map(vault => vault.credentialId === credentialId
     ? {
         ...vault,

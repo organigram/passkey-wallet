@@ -6,6 +6,11 @@ const bufferSourceToBytes = (value) => value instanceof ArrayBuffer
     ? new Uint8Array(value)
     : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
 const createChallenge = () => randomBytes(32);
+/**
+ * Create the payload of a new vault, with a new wallet encryption key pair.
+ *
+ * @param recoveryPhrase - The recovery phrase of the wallet.
+ */
 export const createBrowserPasskeyWalletVaultPayload = async (recoveryPhrase) => {
     return {
         version: 1,
@@ -13,6 +18,12 @@ export const createBrowserPasskeyWalletVaultPayload = async (recoveryPhrase) => 
         walletEncryptionKey: await createWalletEncryptionKeyPair()
     };
 };
+/**
+ * Read a decrypted vault payload.
+ *
+ * @param plaintext - The decrypted payload, in JSON.
+ * @throws When the payload is invalid or of an unsupported version.
+ */
 export const parseBrowserPasskeyWalletVaultPayload = (plaintext) => {
     const payload = JSON.parse(plaintext);
     if (payload.version !== 1 ||
@@ -207,8 +218,20 @@ const createPasskeyVaultRecord = async ({ accounts, name, rpId, rpName, vaultPay
         envelope
     };
 };
+/** Generate a new 12-word English BIP-39 recovery phrase. */
 export const createGeneratedRecoveryPhrase = () => generateMnemonic(english, 128);
+/**
+ * Get the Ethereum BIP-44 derivation path of an address index.
+ *
+ * @param addressIndex - The address index.
+ */
 export const getDerivationPath = (addressIndex) => `m/44'/60'/0'/0/${addressIndex}`;
+/**
+ * Derive the account of an address index from a recovery phrase.
+ *
+ * @param input - The recovery phrase, the address index, and the name of the
+ * account, `Account <index + 1>` by default.
+ */
 export const deriveStoredVaultAccount = ({ recoveryPhrase, addressIndex, name }) => {
     const account = mnemonicToAccount(recoveryPhrase, { addressIndex });
     return {
@@ -230,6 +253,13 @@ const createUnlockedWallet = ({ vaultAccount, credentialId, vaultPayload }) => {
         credentialId
     };
 };
+/**
+ * Switch an unlocked wallet to another of its accounts.
+ *
+ * @param input - The unlocked wallet and the account to select.
+ * @throws When the account does not derive from the recovery phrase of the
+ * wallet.
+ */
 export const derivePasskeyWalletAccount = ({ wallet, account }) => {
     const derivedAccount = mnemonicToAccount(wallet.recoveryPhrase, {
         addressIndex: account.addressIndex
@@ -243,6 +273,28 @@ export const derivePasskeyWalletAccount = ({ wallet, account }) => {
         account: derivedAccount
     };
 };
+/**
+ * Create a passkey and a vault encrypting a recovery phrase with it.
+ *
+ * @remarks
+ * Asks the browser to create a discoverable passkey with user verification and
+ * the PRF extension. The recovery phrase is encrypted with a key derived from
+ * the PRF output, which is then zeroed. Store the returned record, which holds
+ * no secret in clear, and keep the unlocked wallet in memory only.
+ * @param input - The recovery phrase, the name of the wallet, the WebAuthn
+ * relying party identifier, the current host name by default, and the relying
+ * party name.
+ * @returns The vault record and the unlocked wallet, on its first account.
+ * @throws When passkeys are not available, or the passkey returns no valid PRF
+ * output.
+ * @example
+ * ```ts
+ * const { record, wallet } = await registerBrowserPasskeyVault({
+ *   recoveryPhrase: createGeneratedRecoveryPhrase(),
+ *   name: 'My wallet'
+ * })
+ * ```
+ */
 export const registerBrowserPasskeyVault = async ({ recoveryPhrase, name, rpId = window.location.hostname, rpName = 'Organigram Passkey Wallet' }) => {
     if (window.PublicKeyCredential == null) {
         throw new Error('Passkeys are not available in this browser.');
@@ -270,6 +322,17 @@ export const registerBrowserPasskeyVault = async ({ recoveryPhrase, name, rpId =
         })
     };
 };
+/**
+ * Create another passkey able to unlock an unlocked wallet, for example as a
+ * backup.
+ *
+ * @param input - The unlocked wallet, the name of the passkey, the accounts it
+ * unlocks, and the WebAuthn relying party.
+ * @returns The new vault record and the wallet, now attached to the new
+ * passkey.
+ * @throws When passkeys are not available, or the passkey returns no valid PRF
+ * output.
+ */
 export const registerAdditionalBrowserPasskeyVault = async ({ wallet, name, accounts, rpId = window.location.hostname, rpName = 'Organigram Passkey Wallet' }) => {
     if (window.PublicKeyCredential == null) {
         throw new Error('Passkeys are not available in this browser.');
@@ -333,7 +396,15 @@ export const requestPasskeyPrfOutput = async ({ credentials, rpId = window.locat
         prfOutput: getPrfOutput(credential)
     };
 };
-// Does not zero the PRF output: the caller may try several envelopes with it.
+/**
+ * Decrypt a vault envelope with the PRF output of its passkey.
+ *
+ * @remarks
+ * Does not zero the PRF output, so that the caller may try several envelopes
+ * with it. Zero it once done.
+ * @param input - The envelope and the PRF output.
+ * @throws When decryption fails or the payload is invalid.
+ */
 export const decryptVaultPayloadWithPrfOutput = async ({ envelope, prfOutput }) => parseBrowserPasskeyWalletVaultPayload(await decryptPasskeyVaultSecret({
     envelope,
     key: await derivePasskeyVaultKey({
@@ -391,11 +462,41 @@ const unlockWithPrfOutput = async ({ records, rpId }) => {
     prfOutput.fill(0);
     throw new Error('Unable to decrypt passkey wallet.');
 };
+/**
+ * Unlock a wallet with one of the passkeys of its vaults.
+ *
+ * @remarks
+ * Asks the user to pick one of the passkeys of the records, with user
+ * verification. The vaults of that passkey are tried in turn, and the first
+ * whose recovery phrase derives the address of its record is unlocked. The PRF
+ * output is zeroed.
+ * @param input - The vault records to choose from, and the WebAuthn relying
+ * party identifier, the current host name by default.
+ * @returns The record unlocked and the wallet, on the first account of the
+ * record.
+ * @throws When no record is given or no vault of the selected passkey can be
+ * decrypted.
+ * @example
+ * ```ts
+ * const { wallet } = await unlockBrowserPasskeyVault({ records })
+ * const signature = await signPersonalMessage({ wallet, message: 'Hello' })
+ * ```
+ */
 export const unlockBrowserPasskeyVault = async ({ records, rpId = window.location.hostname }) => {
     const { prfOutput, ...result } = await unlockWithPrfOutput({ records, rpId });
     prfOutput.fill(0);
     return result;
 };
+/**
+ * Unlock a vault and re-encrypt it with another wallet encryption key pair.
+ *
+ * @remarks
+ * Asks the user for a passkey, and keeps the PRF salt of the vault. Store the
+ * returned record in place of the old one.
+ * @param input - The vault records to choose from, the new key pair and the
+ * WebAuthn relying party identifier.
+ * @returns The re-encrypted record and the unlocked wallet.
+ */
 export const updateStaticPasskeyVaultEncryptionKey = async ({ records, walletEncryptionKey, rpId = window.location.hostname }) => {
     const result = await unlockWithPrfOutput({ records, rpId });
     const vaultPayload = {
@@ -424,10 +525,25 @@ export const updateStaticPasskeyVaultEncryptionKey = async ({ records, walletEnc
         })
     };
 };
+/**
+ * Sign a message with EIP-191 `personal_sign`.
+ *
+ * @param input - The unlocked wallet and the message.
+ */
 export const signPersonalMessage = async ({ wallet, message }) => await wallet.account.signMessage({
     message
 });
+/**
+ * Sign EIP-712 typed data.
+ *
+ * @param input - The unlocked wallet and the typed data.
+ */
 export const signTypedDataMessage = async ({ wallet, typedData }) => await wallet.account.signTypedData(typedData);
+/**
+ * Encode a UTF-8 message in hex, as `personal_sign` requests carry it.
+ *
+ * @param message - The message.
+ */
 export const hexEncodeMessage = (message) => `0x${Array.from(textEncoder.encode(message))
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('')}`;

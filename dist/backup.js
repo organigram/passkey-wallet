@@ -1,5 +1,11 @@
 import { getAddress, isAddress } from 'viem';
 import { base64UrlToBytes, bytesToBase64Url, derivePasskeyVaultKey, getCrypto, hasBase64UrlByteLength, isPasskeyVaultEnvelope, randomBytes, textDecoder, textEncoder, toArrayBuffer } from './crypto';
+/**
+ * Check and checksum an address typed by a user to restore backups.
+ *
+ * @param value - The address.
+ * @throws When the value is not an address.
+ */
 export const normalizeBackupAddress = (value) => {
     const trimmed = value.trim();
     if (!isAddress(trimmed)) {
@@ -22,12 +28,23 @@ const isRemoteVaultBackupRecord = (value) => {
         typeof record.createdAt === 'string' &&
         record.createdAt !== '');
 };
+/**
+ * Wrap the backups of a wallet in a package.
+ *
+ * @param input - The address of the wallet and its backups.
+ */
 export const createRemoteVaultBackupPackage = ({ address, backups }) => ({
     version: 1,
     address: getAddress(address),
     backups,
     exportedAt: new Date().toISOString()
 });
+/**
+ * Read a backup package.
+ *
+ * @param value - The package, parsed from JSON.
+ * @throws When the package is invalid, empty, or of an unsupported version.
+ */
 export const parseRemoteVaultBackupPackage = (value) => {
     if (typeof value !== 'object' || value == null) {
         throw new Error('Encrypted backup must be a JSON object.');
@@ -65,10 +82,22 @@ const stableJsonStringify = (value) => {
 const bytesToHex = (bytes) => Array.from(bytes)
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
+/**
+ * Hash backups with SHA-256, over a JSON serialization with sorted keys.
+ *
+ * @param backups - The backups.
+ * @returns The digest, in hex.
+ */
 export const createVaultBackupDigest = async (backups) => {
     const digest = await getCrypto().subtle.digest('SHA-256', textEncoder.encode(stableJsonStringify(backups)));
     return bytesToHex(new Uint8Array(digest));
 };
+/**
+ * Build the message the wallet signs to authorize storing backups.
+ *
+ * @param input - The address of the wallet, the number of backups and their
+ * digest from `createVaultBackupDigest()`.
+ */
 export const createVaultBackupSignatureMessage = ({ address, vaultCount, digest }) => [
     'Organigram Wallet Vault Backup',
     '',
@@ -91,6 +120,16 @@ const deriveRemoteBackupKey = async ({ address, recoveryPhrase, salt }) => {
         keyMaterial.fill(0);
     }
 };
+/**
+ * Encrypt a vault record for backup.
+ *
+ * @remarks
+ * The backup key is derived with HKDF from a SHA-256 hash of the recovery
+ * phrase, a random salt, and the address. The recovery phrase itself is never
+ * part of the backup.
+ * @param input - The address of the wallet, the vault record and the recovery
+ * phrase of the wallet.
+ */
 export const createRemoteVaultBackupRecord = async ({ address, record, recoveryPhrase }) => {
     const salt = randomBytes(32);
     const iv = randomBytes(12);
@@ -115,6 +154,16 @@ export const createRemoteVaultBackupRecord = async ({ address, record, recoveryP
         createdAt: new Date().toISOString()
     };
 };
+/**
+ * Decrypt a vault record from a backup.
+ *
+ * @remarks
+ * The result is not validated: check it with `isStoredVaultRecord()` before
+ * use.
+ * @param input - The address of the wallet, the backup and the recovery phrase
+ * of the wallet.
+ * @throws When the recovery phrase or address is not the one of the backup.
+ */
 export const decryptRemoteVaultBackupRecord = async ({ address, backup, recoveryPhrase }) => {
     const salt = base64UrlToBytes(backup.salt);
     const iv = base64UrlToBytes(backup.iv);

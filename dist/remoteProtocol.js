@@ -2,20 +2,43 @@ import { getAddress, isAddress, isHex, recoverMessageAddress, recoverTypedDataAd
 import { parseWalletEncryptedPayload } from './encryption';
 import { normalizeHost, requireString } from './protocol';
 import { getAcceptedWalletOrigins, postToWalletPopup, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
+/** Type of a request to connect an app to the wallet. */
 export const passkeyWalletConnectType = 'organigram:wallet:connect';
+/** Type of the answer to a connect request. */
 export const passkeyWalletConnectResultType = 'organigram:wallet:connect-result';
+/** Type of a request to sign a message. */
 export const passkeyWalletSignMessageType = 'organigram:wallet:sign-message';
+/** Type of the answer to a sign message request. */
 export const passkeyWalletSignMessageResultType = 'organigram:wallet:sign-message-result';
+/** Type of a request to sign EIP-712 typed data. */
 export const passkeyWalletSignTypedDataType = 'organigram:wallet:sign-typed-data';
+/** Type of the answer to a sign typed data request. */
 export const passkeyWalletSignTypedDataResultType = 'organigram:wallet:sign-typed-data-result';
+/** Type of a request to send a transaction. */
 export const passkeyWalletSendTransactionType = 'organigram:wallet:send-transaction';
+/** Type of the answer to a send transaction request. */
 export const passkeyWalletSendTransactionResultType = 'organigram:wallet:send-transaction-result';
+/** Type of a request to encrypt a text with the wallet encryption key. */
 export const passkeyWalletEncryptPayloadType = 'organigram:wallet:encrypt-payload';
+/** Type of the answer to an encrypt payload request. */
 export const passkeyWalletEncryptPayloadResultType = 'organigram:wallet:encrypt-payload-result';
+/** Type of a request to decrypt a text with the wallet encryption key. */
 export const passkeyWalletDecryptPayloadType = 'organigram:wallet:decrypt-payload';
+/** Type of the answer to a decrypt payload request. */
 export const passkeyWalletDecryptPayloadResultType = 'organigram:wallet:decrypt-payload-result';
+/** Type of the answer to a request the wallet could not serve. */
 export const passkeyWalletRemoteErrorResultType = 'organigram:wallet:remote-error';
+/** Type of the message by which an app posts a request to the wallet popup. */
 export const passkeyWalletRemoteRequestPayloadType = 'organigram:wallet:request-payload';
+/**
+ * Check that a signed message comes from the expected address and chain.
+ *
+ * @remarks
+ * Recovers the signer from the signature, so that a forged answer is rejected.
+ * This only works for EOA signatures, which the wallet produces.
+ * @param input - The answer, and the address, chain and message of the request.
+ * @throws When the address, chain or signer differs.
+ */
 export const assertPasskeyWalletSignMessageResult = async ({ result, address, chainId, message }) => {
     const expectedAddress = getAddress(address);
     const resultAddress = getAddress(result.address);
@@ -33,6 +56,15 @@ export const assertPasskeyWalletSignMessageResult = async ({ result, address, ch
         throw new Error(`Organigram Wallet signature recovered ${recoveredAddress}, expected ${expectedAddress}.`);
     }
 };
+/**
+ * Check that signed typed data comes from the expected address and chain.
+ *
+ * @remarks
+ * Recovers the signer from the signature, so that a forged answer is rejected.
+ * @param input - The answer, and the address, chain and typed data of the
+ * request.
+ * @throws When the address, chain or signer differs.
+ */
 export const assertPasskeyWalletSignTypedDataResult = async ({ result, address, chainId, typedData }) => {
     const expectedAddress = getAddress(address);
     const resultAddress = getAddress(result.address);
@@ -50,6 +82,24 @@ export const assertPasskeyWalletSignTypedDataResult = async ({ result, address, 
         throw new Error(`Organigram Wallet typed-data signature recovered ${recoveredAddress}, expected ${expectedAddress}.`);
     }
 };
+const isRequestDomainOfOrigin = (domain, appOrigin) => {
+    try {
+        return normalizeHost(domain) === normalizeHost(new URL(appOrigin).host);
+    }
+    catch {
+        return false;
+    }
+};
+/**
+ * Check that a posted message is a valid request to the wallet.
+ *
+ * @remarks
+ * The domain of the request must be the host of its `appOrigin`. The wallet
+ * must still compare `appOrigin` with the origin of the `MessageEvent`, which
+ * the browser authenticates.
+ * @param value - The data of the message.
+ * @param expectedRequestId - The identifier of the expected request, if known.
+ */
 export const isPasskeyWalletRemoteRequestPayloadMessage = (value, expectedRequestId) => {
     if (typeof value !== 'object' || value == null)
         return false;
@@ -72,6 +122,11 @@ export const isPasskeyWalletRemoteRequestPayloadMessage = (value, expectedReques
         typeof request.requestedAt === 'string';
     if (!hasRemoteRequestBase)
         return false;
+    // The domain shown for approval is declared by the requesting page, so it
+    // must be its own, as for requests passed in the URL.
+    if (!isRequestDomainOfOrigin(request.domain, request.appOrigin)) {
+        return false;
+    }
     if (request.type === passkeyWalletConnectType)
         return true;
     if (request.type !== passkeyWalletSignMessageType &&
@@ -112,7 +167,18 @@ export const isPasskeyWalletRemoteRequestPayloadMessage = (value, expectedReques
     return (typeof signTypedDataRequest.address === 'string' &&
         isPasskeyWalletTypedData(signTypedDataRequest.typedData));
 };
+/**
+ * Serialize typed data in JSON, writing bigints as decimal strings.
+ *
+ * @param typedData - The typed data.
+ */
 export const stringifyPasskeyWalletTypedData = (typedData) => JSON.stringify(typedData, (_key, value) => typeof value === 'bigint' ? value.toString() : value);
+/**
+ * Read typed data.
+ *
+ * @param value - The typed data, or its JSON.
+ * @throws When the value is not typed data.
+ */
 export const parsePasskeyWalletTypedData = (value) => {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value;
     if (!isPasskeyWalletTypedData(parsed)) {
@@ -132,6 +198,11 @@ const isPasskeyWalletTypedData = (value) => {
         typeof typedData.message === 'object' &&
         typedData.message != null);
 };
+/**
+ * Check that a value is a transaction with valid addresses and hex quantities.
+ *
+ * @param value - The value to check.
+ */
 export const isPasskeyWalletTransaction = (value) => {
     if (typeof value !== 'object' || value == null)
         return false;
@@ -184,6 +255,17 @@ const createRequestId = () => {
     }
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 };
+/**
+ * Build the URL of the wallet popup for a request.
+ *
+ * @remarks
+ * Every request other than connect is then delivered by `postMessage`. The
+ * wallet reads the requesting origin from the browser-authenticated
+ * `MessageEvent` instead of trusting the `appOrigin` written in the URL, and no
+ * message, transaction or secret lands in a URL.
+ * @param input - The request, with its type and address.
+ * @throws When the wallet or app origin does not use HTTPS.
+ */
 export const buildPasskeyWalletRemotePopupUrl = ({ walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin, appOrigin = window.location.origin, type, chainId, requestId = createRequestId(), requestedAt = new Date().toISOString(), address, approvalStep, approvalCount, approvalLabel }) => {
     const normalizedAppOrigin = requireHttpsOrigin(appOrigin, 'appOrigin').origin;
     const popupUrl = requireHttpsOrigin(walletOrigin, 'walletOrigin');
@@ -213,6 +295,16 @@ export const buildPasskeyWalletRemotePopupUrl = ({ walletOrigin = getConfiguredW
     }
     return popupUrl;
 };
+/**
+ * Read and check a request from the URL parameters of the wallet popup.
+ *
+ * @remarks
+ * Rejects encrypt and decrypt requests, which must be delivered by
+ * `postMessage`, and requests whose domain is not the host of their
+ * `appOrigin`.
+ * @param params - The URL parameters.
+ * @throws When the request is invalid or of an unsupported type or version.
+ */
 export const parsePasskeyWalletRemoteRequest = (params) => {
     const type = requireString(params.get('type'), 'type');
     if (type !== passkeyWalletConnectType &&
@@ -361,6 +453,14 @@ const createPostMessagePayload = (request) => ({
     version: 1,
     request
 });
+/**
+ * Ask the wallet, in a popup, to encrypt a text for the origin of the app.
+ *
+ * @param input - The request, the address, the text, and a timeout, 5 minutes
+ * by default.
+ * @returns The answer, with the encrypted payload.
+ * @throws When the popup cannot be opened or the user does not answer in time.
+ */
 export const requestPasskeyWalletEncryptPayload = async ({ timeoutMs = 5 * 60 * 1000, plaintext, ...input }) => {
     const requestId = input.requestId ?? createRequestId();
     const popupUrl = buildPasskeyWalletRemotePopupUrl({
@@ -387,6 +487,15 @@ export const requestPasskeyWalletEncryptPayload = async ({ timeoutMs = 5 * 60 * 
         requestPayload: createPostMessagePayload(request)
     });
 };
+/**
+ * Ask the wallet, in a popup, to decrypt a text encrypted for the origin of the
+ * app.
+ *
+ * @param input - The request, the address, the encrypted payload, and a
+ * timeout, 5 minutes by default.
+ * @returns The answer, with the decrypted text.
+ * @throws When the popup cannot be opened or the user does not answer in time.
+ */
 export const requestPasskeyWalletDecryptPayload = async ({ timeoutMs = 5 * 60 * 1000, encryptedPayload, ...input }) => {
     const requestId = input.requestId ?? createRequestId();
     const popupUrl = buildPasskeyWalletRemotePopupUrl({
@@ -413,6 +522,13 @@ export const requestPasskeyWalletDecryptPayload = async ({ timeoutMs = 5 * 60 * 
         requestPayload: createPostMessagePayload(request)
     });
 };
+/**
+ * Ask the wallet, in a popup, to connect the app.
+ *
+ * @param input - The request, and a timeout, 5 minutes by default.
+ * @returns The answer, with the address the user selected.
+ * @throws When the popup cannot be opened or the user does not answer in time.
+ */
 export const requestPasskeyWalletConnect = async ({ timeoutMs = 5 * 60 * 1000, ...input }) => {
     const requestId = input.requestId ?? createRequestId();
     const popupUrl = buildPasskeyWalletRemotePopupUrl({
@@ -427,6 +543,17 @@ export const requestPasskeyWalletConnect = async ({ timeoutMs = 5 * 60 * 1000, .
         timeoutMs
     });
 };
+/**
+ * Ask the wallet, in a popup, to sign a message.
+ *
+ * @remarks
+ * The answer is checked with `assertPasskeyWalletSignMessageResult()`.
+ * @param input - The request, the address, the message, and a timeout, 5
+ * minutes by default.
+ * @returns The answer, with the signature.
+ * @throws When the popup cannot be opened, the user does not answer in time, or
+ * the signature is not valid.
+ */
 export const requestPasskeyWalletSignMessage = async ({ timeoutMs = 5 * 60 * 1000, message, ...input }) => {
     const requestId = input.requestId ?? createRequestId();
     const popupUrl = buildPasskeyWalletRemotePopupUrl({

@@ -6,6 +6,9 @@ import { getAcceptedWalletOrigins, postToWalletPopup, rememberWalletOrigin, toPr
 const remoteWalletName = 'Passkey Wallet';
 const remoteWalletId = organigramPasskeyWalletId;
 const remoteWalletConnectionStorageKey = 'organigram.remotePasskeyWallet.connection.v1';
+/**
+ * Identifier of the wagmi connector of the wallet, `organigramPasskeyWalletId`.
+ */
 export const organigramRemotePasskeyWalletId = remoteWalletId;
 const getLocalStorage = () => {
     if (typeof window === 'undefined')
@@ -41,7 +44,17 @@ const parseStoredConnection = (value) => {
         return null;
     }
 };
+/**
+ * Read the remembered connection to the wallet.
+ *
+ * @returns The connection, or `null` if none is valid.
+ */
 export const getOrganigramRemotePasskeyWalletConnection = () => parseStoredConnection(getLocalStorage()?.getItem(remoteWalletConnectionStorageKey) ?? null);
+/**
+ * Remember a connection to the wallet in local storage.
+ *
+ * @param input - The connected address and chain.
+ */
 export const rememberOrganigramRemotePasskeyWalletConnection = ({ address, chainId }) => {
     const storage = getLocalStorage();
     if (storage == null)
@@ -59,6 +72,7 @@ export const rememberOrganigramRemotePasskeyWalletConnection = ({ address, chain
         // Local storage can be unavailable in hardened browser modes.
     }
 };
+/** Forget the remembered connection to the wallet. */
 export const clearOrganigramRemotePasskeyWalletConnection = () => {
     try {
         getLocalStorage()?.removeItem(remoteWalletConnectionStorageKey);
@@ -67,6 +81,16 @@ export const clearOrganigramRemotePasskeyWalletConnection = () => {
         // Local storage can be unavailable in hardened browser modes.
     }
 };
+/**
+ * Connect wagmi to the wallet for an address the app already knows, without
+ * opening the wallet popup.
+ *
+ * @remarks
+ * Remembers the connection, then connects the wallet connector, which restores
+ * it. If connecting fails, the connection is forgotten.
+ * @param options - The address and chain, and the wagmi connectors and
+ * `connectAsync`.
+ */
 export const hydrateOrganigramRemoteWalletConnection = async ({ address, chainId, connectAsync, connectors, defaultChainId = 11155111 }) => {
     const resolvedChainId = chainId ?? defaultChainId;
     rememberOrganigramRemotePasskeyWalletConnection({
@@ -498,6 +522,24 @@ const createRemotePasskeyWalletProvider = ({ getAddress, getChain, rpcUrl, switc
         }
     };
 };
+/**
+ * Create the RainbowKit wallet of the passkey wallet, which opens the wallet in
+ * a popup.
+ *
+ * @remarks
+ * The connector exposes an EIP-1193 provider. Account and signing requests open
+ * the wallet popup, and every signature is checked against the connected
+ * address and chain. Other JSON-RPC requests go to the default RPC URL of the
+ * active chain.
+ * @param input - The origin of the wallet, and replacements of its requests.
+ * @example
+ * ```ts
+ * const connectors = connectorsForWallets(
+ *   [{ groupName: 'Organigram', wallets: [() => createOrganigramRemotePasskeyWallet()] }],
+ *   { appName: 'My app', projectId }
+ * )
+ * ```
+ */
 export const createOrganigramRemotePasskeyWallet = ({ walletOrigin, requestConnect, requestPersonalSign, requestSignTypedData, requestSendTransaction } = {}) => {
     const remotePopupTransport = createRemotePopupTransport(walletOrigin);
     const connectRemote = requestConnect ?? remotePopupTransport.connect;

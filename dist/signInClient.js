@@ -1,5 +1,8 @@
 import { passkeyWalletSignInResultType, passkeyWalletSignInType } from './signInProtocol';
 import { getAcceptedWalletOrigins, rememberWalletOrigin, toPreferredWalletUrl, watchLocalWalletPopup } from './walletOrigin';
+/**
+ * Type of the message telling an app that its session changed in the wallet.
+ */
 export const passkeyWalletStackSessionChangedType = 'organigram:wallet:stack-session-changed';
 const defaultWalletOrigin = 'https://localhost:3002';
 const getConfiguredWalletOrigin = () => typeof process !== 'undefined'
@@ -30,6 +33,15 @@ const parseOptionalAddress = (value) => {
     }
     return value;
 };
+/**
+ * Read a session change message.
+ *
+ * @remarks
+ * Also check the origin of the `MessageEvent` carrying it: only trust messages
+ * from the wallet.
+ * @param value - The data of the message.
+ * @returns The message, or `null` if it is invalid.
+ */
 export const parsePasskeyWalletStackSessionChangedMessage = (value) => {
     if (value == null || typeof value !== 'object' || Array.isArray(value)) {
         return null;
@@ -54,6 +66,13 @@ export const parsePasskeyWalletStackSessionChangedMessage = (value) => {
         address
     };
 };
+/**
+ * Create a session change message.
+ *
+ * @param input - The event, the origin of the app and the address of the
+ * session.
+ * @throws When the origin or address is invalid.
+ */
 export const createPasskeyWalletStackSessionChangedMessage = ({ event, appOrigin, address }) => {
     const message = parsePasskeyWalletStackSessionChangedMessage({
         type: passkeyWalletStackSessionChangedType,
@@ -67,6 +86,12 @@ export const createPasskeyWalletStackSessionChangedMessage = ({ event, appOrigin
     }
     return message;
 };
+/**
+ * Post a session change message to the window that opened the wallet.
+ *
+ * @param input - The event, the origin of the app, the address of the session,
+ * and the origin to post to, the app origin by default.
+ */
 export const notifyPasskeyWalletStackSessionChanged = ({ event, appOrigin, address, targetOrigin = appOrigin }) => {
     if (typeof window === 'undefined')
         return;
@@ -80,6 +105,12 @@ export const notifyPasskeyWalletStackSessionChanged = ({ event, appOrigin, addre
     });
     window.opener?.postMessage(message, normalizedTargetOrigin);
 };
+/**
+ * Build the URL of the wallet popup for a sign-in request, with the challenge
+ * URL `/api/auth/wallet/challenge` of the app.
+ *
+ * @param input - The sign-in request.
+ */
 export const buildPasskeyWalletSignInPopupUrl = ({ walletOrigin = getConfiguredWalletOrigin() ?? defaultWalletOrigin, appOrigin = window.location.origin, nonce, chainId, requestId = createRequestId(), requestedAt = new Date().toISOString() }) => {
     const normalizedAppOrigin = new URL(appOrigin).origin;
     const challengeUrl = new URL('/api/auth/wallet/challenge', normalizedAppOrigin);
@@ -95,6 +126,18 @@ export const buildPasskeyWalletSignInPopupUrl = ({ walletOrigin = getConfiguredW
     popupUrl.searchParams.set('requestedAt', requestedAt);
     return popupUrl;
 };
+/**
+ * Ask the wallet, in a popup, to sign a Sign-In with Ethereum message for the
+ * app.
+ *
+ * @remarks
+ * Only accepts answers from the wallet origin and its local copy, for this
+ * request. The result is not verified: the server must verify it with
+ * `verifyPasskeyWalletSiwe()`.
+ * @param input - The sign-in request, and a timeout, 5 minutes by default.
+ * @returns The signed message.
+ * @throws When the popup cannot be opened or the user does not answer in time.
+ */
 export const requestPasskeyWalletSignIn = async ({ nonce, chainId, popup: preparedPopup, walletOrigin, timeoutMs = 5 * 60 * 1000 }) => {
     const requestId = createRequestId();
     const configuredPopupUrl = buildPasskeyWalletSignInPopupUrl({
@@ -153,6 +196,10 @@ export const requestPasskeyWalletSignIn = async ({ nonce, chainId, popup: prepar
         window.addEventListener('message', handleMessage);
     });
 };
+/**
+ * Submit a signed message to the NextAuth credentials callback of the app, at
+ * `/api/auth/callback/credentials`.
+ */
 export const submitPasskeyWalletCredentials = async ({ csrfToken, message, signature }) => {
     const response = await fetch('/api/auth/callback/credentials', {
         method: 'POST',
@@ -183,6 +230,10 @@ export const submitPasskeyWalletCredentials = async ({ csrfToken, message, signa
     };
 };
 const nextAuthSessionStorageEventKey = 'nextauth.message';
+/**
+ * Tell NextAuth in the current tab that the session changed, so that it reloads
+ * it.
+ */
 export const notifyCurrentTabNextAuthSessionChanged = () => {
     if (typeof window === 'undefined')
         return;
@@ -214,6 +265,23 @@ const openPasskeyWalletPopupShell = () => {
         return undefined;
     return window.open('', 'passkey-wallet-sign-in', 'popup,width=480,height=720');
 };
+/**
+ * Sign in to a NextAuth app with the wallet.
+ *
+ * @remarks
+ * Opens the wallet popup, uses the CSRF token as the nonce of the Sign-In with
+ * Ethereum message, and submits the signed message to the NextAuth credentials
+ * provider, which verifies it with `authorizePasskeyWalletCredentials()`.
+ * @param input - The CSRF token getter, the chain and the wallet origin.
+ * @returns The signed message.
+ * @throws When the CSRF token is missing or the sign-in fails.
+ * @example
+ * ```ts
+ * import { getCsrfToken } from 'next-auth/react'
+ *
+ * await signInWithPasskeyWallet({ getCsrfToken })
+ * ```
+ */
 export const signInWithPasskeyWallet = async ({ chainId = 11155111, walletOrigin, getCsrfToken, requestWalletSignIn = requestPasskeyWalletSignIn, submitCredentials = submitPasskeyWalletCredentials }) => {
     const popup = requestWalletSignIn === requestPasskeyWalletSignIn
         ? openPasskeyWalletPopupShell()

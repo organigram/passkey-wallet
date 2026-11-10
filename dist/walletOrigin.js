@@ -1,11 +1,15 @@
+/** Origin of the official Organigram passkey wallet. */
+export const officialWalletOrigin = 'https://wallet.organigram.ai';
 /**
+ * Origin of the local copy of the official wallet.
+ *
+ * @remarks
  * A wallet can have a local copy: the same wallet run on the user's own
  * machine, served under a subdomain of the wallet host, so that it unlocks the
  * same passkeys. An app that trusts the wallet then also trusts that copy.
  * The official wallet's copy is `pnpm dev local-organigram`; another
  * deployment declares its own through `NEXT_PUBLIC_ORGANIGRAM_PASSKEY_WALLET_LOCAL_URL`.
  */
-export const officialWalletOrigin = 'https://wallet.organigram.ai';
 export const officialLocalWalletOrigin = 'https://local.wallet.organigram.ai:3002';
 /** Posted by the local copy's request page as soon as it loads. */
 export const passkeyWalletReadyType = 'organigram:wallet:ready';
