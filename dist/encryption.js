@@ -18,6 +18,13 @@ const importWalletPrivateKey = async (privateKey) => await getCrypto().subtle.im
     'deriveKey',
     'deriveBits'
 ]);
+/**
+ * Generate a new ECDH P-256 key pair for a wallet.
+ *
+ * @remarks
+ * The private key is exportable, so that it can be stored in the passkey vaults
+ * of the wallet. Keep it there.
+ */
 export const createWalletEncryptionKeyPair = async () => {
     const keyPair = await generateWalletEncryptionCryptoKeyPair();
     return {
@@ -28,6 +35,12 @@ export const createWalletEncryptionKeyPair = async () => {
         keyVersion: createEncryptionKeyVersion()
     };
 };
+/**
+ * Read a wallet encryption key pair.
+ *
+ * @param value - The key pair, parsed from JSON.
+ * @throws When the value is not a key pair of a supported version.
+ */
 export const parseWalletEncryptionKeyPair = (value) => {
     if (!isPlainObject(value)) {
         throw new Error('Wallet encryption key backup must be an object.');
@@ -47,12 +60,33 @@ export const parseWalletEncryptionKeyPair = (value) => {
         keyVersion: value.keyVersion
     };
 };
+/**
+ * Encode the public key of a wallet as a resource of a Sign-In with Ethereum
+ * message.
+ *
+ * @remarks
+ * Signing in with this resource lets the application learn the public key of
+ * the wallet, bound to its address by the signature.
+ * @param input - The address of the wallet and its key pair. Only the public
+ * key is encoded.
+ */
 export const createWalletEncryptionPublicKeySiweResource = ({ address, keyPair }) => `${encryptionPublicKeyResourcePrefix}${bytesToBase64Url(textEncoder.encode(JSON.stringify({
     kind: encryptionPublicKeyResourceKind,
     address: address.toLowerCase(),
     publicKey: keyPair.publicKey,
     keyVersion: keyPair.keyVersion
 })))}`;
+/**
+ * Read the public key of a wallet from the resources of a Sign-In with Ethereum
+ * message.
+ *
+ * @remarks
+ * Only trust the result once the signature of the message is verified.
+ * @param input - The address that signed the message, and the resources of the
+ * message.
+ * @returns The public key, or `null` if no valid resource of this address is
+ * found.
+ */
 export const parseWalletEncryptionPublicKeySiweResource = ({ address, resources }) => {
     const resource = resources?.find(resource => resource.startsWith(encryptionPublicKeyResourcePrefix));
     if (resource == null)
@@ -81,6 +115,15 @@ const deriveSelfEncryptionKey = async (keyPair) => {
     const publicKey = await importWalletPublicKey(keyPair.publicKey);
     return await getCrypto().subtle.deriveKey({ name: 'ECDH', public: publicKey }, privateKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 };
+/**
+ * Encrypt a file so that only the wallet holding the key pair can decrypt it.
+ *
+ * @remarks
+ * The AES-GCM key is derived by ECDH between the private and public keys of the
+ * same key pair. The name, type, size and date of the file stay in clear and
+ * are not authenticated with the ciphertext.
+ * @param input - The address of the wallet, the file and the key pair.
+ */
 export const encryptFileWithWalletEncryptionKey = async ({ address, file, keyPair }) => {
     const key = await deriveSelfEncryptionKey(keyPair);
     const iv = getRandomIv();
@@ -113,6 +156,18 @@ const getEncryptedPayloadAdditionalData = ({ appOrigin, address, keyVersion }) =
     address.toLowerCase(),
     keyVersion
 ])));
+/**
+ * Encrypt a text so that only the wallet holding the key pair can decrypt it,
+ * for one application origin.
+ *
+ * @remarks
+ * The application origin, the address and the key version are authenticated
+ * with the ciphertext, so that the payload cannot be decrypted for another
+ * application or relabelled for it.
+ * @param input - The address of the wallet, the origin of the application, the
+ * text and the key pair.
+ * @throws When the application origin is not a valid URL.
+ */
 export const encryptPayloadWithWalletEncryptionKey = async ({ address, appOrigin, plaintext, keyPair }) => {
     const normalizedAppOrigin = new URL(appOrigin).origin;
     const key = await deriveSelfEncryptionKey(keyPair);
@@ -141,6 +196,12 @@ export const encryptPayloadWithWalletEncryptionKey = async ({ address, appOrigin
         encryptedAt: new Date().toISOString()
     };
 };
+/**
+ * Read an encrypted file package.
+ *
+ * @param value - The package, parsed from JSON.
+ * @throws When the value is not a package of a supported version.
+ */
 export const parseWalletEncryptedFilePackage = (value) => {
     if (!isPlainObject(value) || !isPlainObject(value.recipient)) {
         throw new Error('Encrypted file package must be an object.');
@@ -185,6 +246,12 @@ export const parseWalletEncryptedFilePackage = (value) => {
         encryptedAt: value.encryptedAt
     };
 };
+/**
+ * Read an encrypted payload.
+ *
+ * @param value - The payload, parsed from JSON.
+ * @throws When the value is not a payload of a supported version.
+ */
 export const parseWalletEncryptedPayload = (value) => {
     if (!isPlainObject(value) || !isPlainObject(value.recipient)) {
         throw new Error('Encrypted payload must be an object.');
@@ -217,6 +284,13 @@ export const parseWalletEncryptedPayload = (value) => {
         encryptedAt: value.encryptedAt
     };
 };
+/**
+ * Decrypt a file encrypted with `encryptFileWithWalletEncryptionKey()`.
+ *
+ * @param input - The encrypted package and the key pair of the wallet.
+ * @throws When the package was encrypted with another key pair, decryption
+ * fails, or the decrypted size does not match the package.
+ */
 export const decryptFileWithWalletEncryptionKey = async ({ encryptedPackage, keyPair }) => {
     if (encryptedPackage.recipient.keyVersion !== keyPair.keyVersion) {
         throw new Error('Encrypted file was created for another wallet encryption key.');
@@ -236,6 +310,14 @@ export const decryptFileWithWalletEncryptionKey = async ({ encryptedPackage, key
             : { lastModified: encryptedPackage.file.lastModified })
     };
 };
+/**
+ * Decrypt a text encrypted with `encryptPayloadWithWalletEncryptionKey()`.
+ *
+ * @param input - The encrypted payload, the origin of the application asking
+ * for it, and the key pair of the wallet.
+ * @throws When the payload was encrypted with another key pair or for another
+ * application origin, or decryption fails.
+ */
 export const decryptPayloadWithWalletEncryptionKey = async ({ encryptedPayload, appOrigin, keyPair }) => {
     if (encryptedPayload.recipient.keyVersion !== keyPair.keyVersion) {
         throw new Error('Encrypted payload was created for another wallet encryption key.');

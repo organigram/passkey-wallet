@@ -1,4 +1,29 @@
 import { verifyPasskeyWalletSiwe } from './server';
+/**
+ * Verify the credentials submitted to a NextAuth credentials provider by
+ * `signInWithPasskeyWallet()`.
+ *
+ * @remarks
+ * Rejects credentials without message, signature or nonce, then verifies them
+ * with `verifyPasskeyWalletSiwe()`. The nonce is the CSRF token of the
+ * session, which `signInWithPasskeyWallet()` puts in the message.
+ * @param input - The credentials, the domain and nonce of the app, and an RPC
+ * endpoint.
+ * @returns The verified sign-in, or `null`.
+ * @example
+ * ```ts
+ * CredentialsProvider({
+ *   credentials: { message: {}, signature: {} },
+ *   authorize: async credentials =>
+ *     await authorizePasskeyWalletCredentials({
+ *       credentials,
+ *       domain: 'app.example.com',
+ *       nonce: csrfToken,
+ *       transportUrl: rpcUrl
+ *     })
+ * })
+ * ```
+ */
 export const authorizePasskeyWalletCredentials = async ({ chain, credentials, domain, nonce, transportOptions, transportUrl }) => {
     const message = credentials?.message;
     const signature = credentials?.signature;
