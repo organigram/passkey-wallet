@@ -49,6 +49,8 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.x'
+          # A cache could be poisoned by another workflow run.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -95,6 +97,8 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.x'
+          # A cache could be poisoned by another workflow run.
+          package-manager-cache: false
 
       - name: Download package
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
