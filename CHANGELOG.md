@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.0](https://github.com/organigram/organigram/compare/passkey-wallet-v0.1.9...passkey-wallet-v0.2.0) (2026-11-18)
+
+
+### Miscellaneous Chores
+
+* **passkey-wallet:** Synchronize organigram versions
+
 ## [0.1.9](https://github.com/organigram/passkey-wallet/compare/v0.1.8...v0.1.9) (2026-07-28)
 
 **Note:** Version bump only for package @organigram/passkey-wallet
