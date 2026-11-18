@@ -1,0 +1,72 @@
+# Sync IN: imports commits pushed to this public repo's master into the
+# private monorepo organigram/organigram, as a PR against develop.
+# Source of truth: packages/<name>/.github/workflows/sync-with-monorepo.yaml in
+# the monorepo, published here by its sync-out. Identical for every package
+# except PREFIX.
+name: Sync Monorepo IN
+
+on:
+  push:
+    branches: [master]
+
+permissions: {}
+
+concurrency:
+  group: sync-with-monorepo
+  cancel-in-progress: false
+
+jobs:
+  sync-in:
+    if: github.repository_owner == 'organigram'
+    runs-on: ubuntu-latest
+    environment: monorepo-sync
+    permissions: {}
+    env:
+      PREFIX: packages/passkey-wallet
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: organigram/organigram
+          ref: develop
+          token: ${{ secrets.MONOREPO_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Merge public commits
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name sync-bot
+          git config user.email sync-bot@users.noreply.github.com
+          git fetch --no-tags "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          SPLIT=$(git subtree split -q --prefix="$PREFIX" HEAD)
+          # Sync-out pushes and already imported commits are part of the split.
+          if git merge-base --is-ancestor "$GITHUB_SHA" "$SPLIT"; then exit 0; fi
+          BASE=$(git merge-base "$GITHUB_SHA" "$SPLIT")
+          SCOPE=${PREFIX#packages/}
+          # The squash-style trailers let the next sync-out split keep the
+          # public history, so its push stays a fast-forward.
+          SQ=$(git commit-tree "$GITHUB_SHA^{tree}" \
+            -m "chore($SCOPE): import ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+            -m "git-subtree-dir: $PREFIX" -m "git-subtree-split: $GITHUB_SHA")
+          git merge -q -s ours --no-commit --allow-unrelated-histories "$SQ"
+          git diff --binary "$BASE" "$GITHUB_SHA" | git apply --3way --allow-empty --directory="$PREFIX"
+          LOG=$(git log --no-merges --format='- %h %s (%an)' "$BASE..$GITHUB_SHA")
+          git commit -q -m "chore($SCOPE): sync from ${GITHUB_REPOSITORY}@${GITHUB_SHA}" -m "$LOG"
+          {
+            echo "branch=sync/${GITHUB_REPOSITORY#*/}/${GITHUB_SHA}"
+            echo "title=chore($SCOPE): sync from ${GITHUB_REPOSITORY}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open PR against develop
+        if: steps.merge.outputs.branch
+        env:
+          GH_TOKEN: ${{ secrets.MONOREPO_TOKEN }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          TITLE: ${{ steps.merge.outputs.title }}
+        run: |
+          set -euo pipefail
+          git push "https://x-access-token:${GH_TOKEN}@github.com/organigram/organigram.git" "HEAD:refs/heads/${BRANCH}"
+          gh pr create --repo organigram/organigram --base develop --head "$BRANCH" \
+            --title "$TITLE" --body "$(git log -1 --format=%B)"

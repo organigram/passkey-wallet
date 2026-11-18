@@ -1,0 +1,111 @@
+# Publishes @organigram/passkey-wallet to npm from this public repository, with
+# a provenance attestation that links the package to this workflow run and
+# commit. The tarball is built here from lib/, and must match the committed
+# dist/ that the Organigram app runs. The monorepo's release workflow pushes the
+# version tag that starts it.
+# Source of truth: packages/passkey-wallet/.github/workflows/publish.yml in the
+# monorepo, published here by its sync-out.
+name: Publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # Runs the dependencies' code, so it gets no publishing permission.
+  build:
+    if: github.repository == 'organigram/passkey-wallet'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Only released sources: a commit of master, tagged with its own version.
+      - name: Check the tag
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+          test "$GITHUB_REF_NAME" = "v$(jq -r .version package.json)"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.28.0
+          run_install: false
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.x'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Emptied first: the compiler never removes files no source produces.
+      - name: Build the library
+        run: |
+          rm -rf dist
+          pnpm run build:lib
+
+      - name: Check the committed build
+        run: |
+          if [ -n "$(git status --porcelain -- dist)" ]; then
+            git status --short -- dist
+            echo "::error::dist/ does not match lib/. Rebuild it in the monorepo and sync again."
+            exit 1
+          fi
+
+      - name: Pack
+        id: pack
+        run: |
+          mkdir "$RUNNER_TEMP/package"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/package"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: package
+          path: ${{ runner.temp }}/package/*.tgz
+          if-no-files-found: error
+
+  # Runs no code from the repository or its dependencies.
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      # npm 11.5.1 or later publishes through trusted publishing (OIDC).
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.x'
+
+      - name: Download package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      - name: Publish to npm
+        run: |
+          if [ -n "$(npm view "@organigram/passkey-wallet@${VERSION}" version 2> /dev/null)" ]; then
+            echo "@organigram/passkey-wallet@${VERSION} is already published."
+          else
+            npm publish "$RUNNER_TEMP"/package/*.tgz --access public --provenance --ignore-scripts
+          fi

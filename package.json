@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "ssh://git@github.com:organigram/passkey-wallet.git"
+    "url": "git+https://github.com/organigram/passkey-wallet.git"
   },
   "publishConfig": {
     "access": "public"
